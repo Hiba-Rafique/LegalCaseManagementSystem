@@ -1,9 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import mysql.connector
 import bcrypt
+import os
 
-app = Flask(__name__)
+# Adjust static folder to point to Vite build
+app = Flask(__name__, static_folder="../lcms-frontend/dist", static_url_path="/")
 
 # Allow dynamic origin + credentials
 CORS(app, supports_credentials=True)
@@ -12,7 +14,7 @@ def get_db_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root1",
-        password="your_password",
+        password="oop_app3",
         database="lcms"
     )
 
@@ -62,8 +64,15 @@ def signup():
 
     return jsonify(success=True, message="Signup successful."), 201, headers
 
-
-
+# Serve static frontend from dist/
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_react(path):
+    full_path = os.path.join(app.static_folder, path)
+    if path != "" and os.path.exists(full_path):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

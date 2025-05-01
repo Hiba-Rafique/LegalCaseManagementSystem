@@ -16,37 +16,32 @@ function Signup() {
     // Handle form submission
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
         setLoading(true);
-        setError(null); 
+        setError(null);
+    
         const formData = {
-            username: username,
+            FirstName: username, // ✅ Match backend
             password: password,
             role: role
         };
-
+    
         try {
-        
-            const response = await axios.post('https://zkmv6wg4iq1s.share.zrok.io/signup', formData,
-                {
-                    withCredentials: true, // ⭐⭐ Add this ⭐⭐
-                }
-            );
-            
-        
-            if (response.status === 200) {
+            const response = await axios.post('/signup', formData, {
+                withCredentials: true, // Important if backend sets cookies
+            });
+    
+            if (response.status === 201) {
                 console.log('Signup successful:', response.data);
-                navigate('/'); 
+                navigate('/');
             }
         } catch (err) {
-          
             console.error('Error during signup:', err);
             setError('An error occurred. Please try again.');
         } finally {
-            setLoading(false); 
+            setLoading(false);
         }
     };
-
+    
     return (
         <div className="container mt-5">
             <h1>Signup Page</h1>
