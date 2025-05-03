@@ -1,8 +1,12 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import mysql.connector
+import psycopg2
 import bcrypt
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Adjust static folder to point to Vite build
 app = Flask(__name__, static_folder="../lcms-frontend/dist", static_url_path="/")
@@ -11,12 +15,7 @@ app = Flask(__name__, static_folder="../lcms-frontend/dist", static_url_path="/"
 CORS(app, supports_credentials=True)
 
 def get_db_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root1",
-        password="oop_app3",
-        database="lcms"
-    )
+    return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 @app.route('/signup', methods=['POST', 'OPTIONS'])
 def signup():
@@ -34,10 +33,13 @@ def signup():
     data = request.get_json(force=True)
     FirstName = data.get("FirstName", "").strip()
     password = data.get("password", "")
-    role = data.get("role", "")
+    role = data.get("role", "").capitalize()  # Capitalize role to match enum values
 
     if not (FirstName and password and role):
         return jsonify(success=False, message="Missing required fields"), 400, headers
+
+    conn = None
+    cursor = None
 
     try:
         conn = get_db_connection()
@@ -54,15 +56,18 @@ def signup():
         )
         conn.commit()
 
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         print(f"Database error: {err}")
         return jsonify(success=False, message="Database error."), 500, headers
 
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
     return jsonify(success=True, message="Signup successful."), 201, headers
+
 
 # Serve static frontend from dist/
 @app.route("/", defaults={"path": ""})
