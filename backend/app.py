@@ -4,7 +4,7 @@ from flask_cors import CORS
 from flask_session import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import User, users
+from LCMS.backend.model_generation import User, users
 from config import Config
 
 app = Flask(__name__)
