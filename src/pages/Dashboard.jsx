@@ -7,6 +7,8 @@ import CaseOverview from '../components/dashboard/CaseOverview';
 import CalendarSummary from '../components/dashboard/CalendarSummary';
 import DocumentManagement from '../components/dashboard/DocumentManagement';
 import Notifications from '../components/dashboard/Notifications';
+import Billing from '../components/dashboard/Billing';
+import Appeals from '../components/dashboard/Appeals';
 
 const PROFILE_IMAGE_KEY = 'lawyerProfileImage';
 
@@ -61,6 +63,10 @@ const Dashboard = () => {
         return <CalendarSummary />;
       case 'documents':
         return <DocumentManagement />;
+      case 'billing':
+        return <Billing />;
+      case 'appeals':
+        return <Appeals />;
       default:
         return <CaseOverview />;
     }

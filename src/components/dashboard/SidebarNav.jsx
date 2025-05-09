@@ -1,11 +1,13 @@
 import React from 'react';
 import { ListGroup } from 'react-bootstrap';
-import { Briefcase, Calendar3, Folder, Person } from 'react-bootstrap-icons';
+import { Briefcase, Calendar3, Folder, CreditCard2Front, Hammer } from 'react-bootstrap-icons';
 
 const navItems = [
   { view: 'cases', label: 'My Cases', icon: <Briefcase className="me-2" /> },
   { view: 'calendar', label: 'Calendar', icon: <Calendar3 className="me-2" /> },
   { view: 'documents', label: 'Documents', icon: <Folder className="me-2" /> },
+  { view: 'billing', label: 'Billing', icon: <CreditCard2Front className="me-2" /> },
+  { view: 'appeals', label: 'Appeals', icon: <Hammer className="me-2" /> },
   // { view: 'profile', label: 'Profile', icon: <Person className="me-2" /> }, // Optional
 ];
 
