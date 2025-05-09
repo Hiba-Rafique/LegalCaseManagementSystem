@@ -204,3 +204,35 @@ button:focus-visible {
   opacity: 0;
   transition: opacity 200ms ease-in;
 }
+
+/* Profile Page Background & Centered Card */
+.profile-bg {
+  min-height: 100vh;
+  min-width: 100vw;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(120deg, #f8fafc 0%, #e3e9f7 100%);
+  overflow: auto;
+  padding: 2rem 0;
+}
+
+.profile-card-container {
+  width: 100%;
+  max-width: 1000px;
+  min-width: 320px;
+  background: white;
+  border-radius: 1.2rem;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.08);
+  padding: 2.5rem 2rem;
+  margin: 2rem 1rem;
+  overflow-y: auto;
+}
+
+@media (max-width: 600px) {
+  .profile-card-container {
+    padding: 1.2rem 0.5rem;
+    margin: 1rem 0.2rem;
+  }
+}

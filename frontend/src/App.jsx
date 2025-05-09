@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Profile from './pages/Profile.jsx';
 import DashboardLayout from './components/DashboardLayout.jsx';
 import RegistrarDashboard from './pages/RegistrarDashboard.jsx'; // Import your layout
+import CompleteProfile from './pages/CompleteProfile.jsx';
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -18,6 +19,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/complete-profile" element={<CompleteProfile />} />
         
         {/* Dashboard and Profile routes with layout */}
         <Route 

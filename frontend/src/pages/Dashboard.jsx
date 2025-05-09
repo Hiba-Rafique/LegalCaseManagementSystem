@@ -15,12 +15,25 @@ const Dashboard = () => {
   const [profileImage, setProfileImage] = useState(null);
   const navigate = useNavigate();
 
-  // Mock lawyer data - in a real app, this would come from your backend
-  const lawyerData = {
-    name: 'John Smith',
-    specialization: 'Corporate Law',
-    barNumber: 'NY123456'
+  // Replace mock lawyerData with data from localStorage (or fallback)
+  const getLawyerData = () => {
+    const stored = localStorage.getItem('lawyerProfileData');
+    if (stored) {
+      const data = JSON.parse(stored);
+      return {
+        name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'John Smith',
+        specialization: data.specialization || 'Corporate Law',
+        barLicense: data.barLicense || 'BAR-2023-12345',
+      };
+    }
+    // fallback
+    return {
+      name: 'John Smith',
+      specialization: 'Corporate Law',
+      barLicense: 'BAR-2023-12345',
+    };
   };
+  const [lawyerData, setLawyerData] = useState(getLawyerData());
 
   useEffect(() => {
     // Load profile image from localStorage if available
@@ -30,6 +43,7 @@ const Dashboard = () => {
     const handleStorage = () => {
       const updatedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
       setProfileImage(updatedImage || 'https://via.placeholder.com/40');
+      setLawyerData(getLawyerData()); // update lawyer data if profile changes
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
@@ -53,9 +67,9 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="d-flex flex-column h-100 w-100">
+    <div style={{ minHeight: '100vh', width: '100vw', height: '100vh', overflow: 'hidden', background: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div className="bg-white border-bottom p-3">
+      <div className="bg-white border-bottom p-3" style={{ flex: '0 0 auto' }}>
         <div className="d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center gap-3">
             <h4 className="mb-0">Lawyer Dashboard</h4>
@@ -88,15 +102,16 @@ const Dashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-grow-1 d-flex w-100 h-100" style={{ minHeight: 0 }}>
+      <div style={{ flex: '1 1 0', display: 'flex', width: '100%', height: '100%', minHeight: 0 }}>
         {/* Sidebar */}
-        <div className="border-end bg-white" style={{ width: '250px' }}>
+        <div className="border-end bg-white" style={{ width: '250px', height: '100%', minHeight: 0, flex: '0 0 250px' }}>
           <SidebarNav activeView={activeView} onViewChange={setActiveView} />
         </div>
-
         {/* Content Area */}
-        <div className="flex-grow-1 p-3 bg-light w-100 h-100" style={{ minHeight: 0, minWidth: 0 }}>
-          {renderContent()}
+        <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0 }}>
+            {renderContent()}
+          </div>
         </div>
       </div>
     </div>

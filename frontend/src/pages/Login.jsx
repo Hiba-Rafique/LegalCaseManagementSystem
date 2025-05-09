@@ -43,118 +43,123 @@ const Login = () => {
     }
 
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    if (
-      userType === 'lawyer' &&
-      email === MOCK_LAWYER.email &&
-      password === MOCK_LAWYER.password
-    ) {
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('userRole', 'lawyer');
-      navigate('/dashboard');
-    } else if (
-      userType === 'registrar' &&
-      email === MOCK_REGISTRAR.email &&
-      password === MOCK_REGISTRAR.password
-    ) {
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('userRole', 'registrar');
-      navigate('/registrar-dashboard');
-    } else {
-      setError('Invalid email or password.');
+    try {
+      // TODO: Call your login API here
+      // Example using fetch:
+      // const response = await fetch('/api/login', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ email, password, userType })
+      // });
+      // const result = await response.json();
+      // if (response.ok) {
+      //   // Success: store token, navigate to dashboard, etc.
+      // } else {
+      //   setError(result.message || 'Login failed.');
+      //   setIsLoading(false);
+      //   return;
+      // }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (
+        userType === 'lawyer' &&
+        email === MOCK_LAWYER.email &&
+        password === MOCK_LAWYER.password
+      ) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userRole', 'lawyer');
+        navigate('/dashboard');
+      } else if (
+        userType === 'registrar' &&
+        email === MOCK_REGISTRAR.email &&
+        password === MOCK_REGISTRAR.password
+      ) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userRole', 'registrar');
+        navigate('/registrar-dashboard');
+      } else {
+        setError('Invalid email or password.');
+      }
+      setIsLoading(false);
+    } catch (apiError) {
+      setError('Login failed. Please try again later.');
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
-    <div className="login-container">
-      {/* Image on the left */}
-      <div className="login-image-section">
-        <img src={legalLoginImage} alt="Legal login" />
-      </div>
-
-      {/* Form on the right */}
-      <div className="login-form-section">
-        <div className="login-form-box">
-          <h2>Welcome Back</h2>
-          <p className="text-muted">Log in to your LegalEase account.</p>
-
-          {/* Demo credentials info */}
-          <div className="mb-3">
-            <div className="small text-muted mb-1">Demo Credentials:</div>
-            <div className="small"><b>Lawyer</b>: lawyer@example.com / password123</div>
-            <div className="small"><b>Court Registrar</b>: registrar@example.com / registrar123</div>
-          </div>
-
-          {error && (
-            <Alert variant="danger" onClose={() => setError(null)} dismissible>
-              {error}
-            </Alert>
-          )}
-
-          <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-3">
-              <Form.Label>User Type</Form.Label>
-              <div className="d-flex gap-3">
-                <Form.Check
-                  type="radio"
-                  label="Lawyer"
-                  name="userType"
-                  id="userType-lawyer"
-                  value="lawyer"
-                  checked={userType === 'lawyer'}
-                  onChange={() => setUserType('lawyer')}
-                />
-                <Form.Check
-                  type="radio"
-                  label="Court Registrar"
-                  name="userType"
-                  id="userType-registrar"
-                  value="registrar"
-                  checked={userType === 'registrar'}
-                  onChange={() => setUserType('registrar')}
-                />
-              </div>
-            </Form.Group>
-
-            <Form.Group className="mb-3">
-              <Form.Label>Email address</Form.Label>
-              <Form.Control
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </Form.Group>
-
-            <Form.Group className="mb-3">
-              <Form.Label>Password</Form.Label>
-              <Form.Control
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </Form.Group>
-
-            <Button variant="primary" type="submit" className="w-100" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Spinner animation="border" size="sm" className="me-2" />
-                  Logging In...
-                </>
-              ) : (
-                'Log In'
-              )}
-            </Button>
-          </Form>
-
-          <p className="mt-3 text-center">
-            Don't have an account? <Link to="/signup">Sign Up</Link>
-          </p>
+    <div className="signup-bg" style={{ minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
+      <div className="signup-form-card" style={{ maxWidth: 420, width: '100%', padding: '2.2em 1.2em 1.5em 1.2em', margin: '2em 0', boxShadow: '0 8px 32px 0 rgba(31,38,135,0.18)', borderRadius: '1.5rem' }}>
+        <img src={legalLoginImage} alt="LegalEase Logo" className="signup-logo" />
+        <h2>Welcome Back</h2>
+        <p className="text-muted">Log in to your LegalEase account.</p>
+        <div className="mb-3">
+          <div className="small text-muted mb-1">Demo Credentials:</div>
+          <div className="small"><b>Lawyer</b>: lawyer@example.com / password123</div>
+          <div className="small"><b>Court Registrar</b>: registrar@example.com / registrar123</div>
         </div>
+        {error && (
+          <Alert variant="danger" onClose={() => setError(null)} dismissible>
+            {error}
+          </Alert>
+        )}
+        <Form onSubmit={handleSubmit} style={{width: '100%'}}>
+          <Form.Group className="mb-3">
+            <Form.Label>User Type</Form.Label>
+            <div className="d-flex gap-3">
+              <Form.Check
+                type="radio"
+                label="Lawyer"
+                name="userType"
+                id="userType-lawyer"
+                value="lawyer"
+                checked={userType === 'lawyer'}
+                onChange={() => setUserType('lawyer')}
+              />
+              <Form.Check
+                type="radio"
+                label="Court Registrar"
+                name="userType"
+                id="userType-registrar"
+                value="registrar"
+                checked={userType === 'registrar'}
+                onChange={() => setUserType('registrar')}
+              />
+            </div>
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Email address</Form.Label>
+            <Form.Control
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Password</Form.Label>
+            <Form.Control
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </Form.Group>
+          <Button variant="primary" type="submit" className="w-100" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Logging In...
+              </>
+            ) : (
+              'Log In'
+            )}
+          </Button>
+        </Form>
+        <p className="mt-3 text-center">
+          Don't have an account? <Link to="/signup">Sign Up</Link>
+        </p>
       </div>
     </div>
   );
