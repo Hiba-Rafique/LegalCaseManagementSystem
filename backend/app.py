@@ -3,63 +3,110 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from flask_cors import CORS
 from flask_session import Session
 from werkzeug.security import generate_password_hash, check_password_hash
-
-from LCMS.backend.model_generation import User, users
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 from config import Config
+from models import Base, Users, Admin, Lawyer, Judge, Courtregistrar, Caseparticipant
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="../lcms-frontend/dist", static_url_path="/")
 app.config.from_object(Config)
 
-# Setup session & CORS
+# Database setup
+engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Session and CORS
 Session(app)
 CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
 
-# Setup login manager
+# Login manager
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-# Fake DB id counter
-user_id_counter = 1
-
 @login_manager.user_loader
 def load_user(user_id):
-    return users.get(user_id)
+    db = SessionLocal()
+    user = db.query(Users).get(int(user_id))
+    db.close()
+    return user
 
 @app.route("/api/signup", methods=["POST"])
 def signup():
-    global user_id_counter
     data = request.get_json()
-    username = data.get("username")
+    firstname = data.get("firstname")
+    lastname = data.get("lastname")
+    email = data.get("email")
+    phoneno = data.get("phoneno")
+    cnic = data.get("cnic")
+    dob = data.get("dob")
     password = data.get("password")
-    role = data.get("role", "user")
+    role = data.get("role", "user").capitalize()
 
-    # Basic check
-    if any(u.username == username for u in users.values()):
-        return jsonify({"success": False, "message": "Username exists"}), 400
+    valid_roles = ["Admin", "Courtregistrar", "Caseparticipant", "Lawyer", "Judge"]
+    if role not in valid_roles:
+        return jsonify({"success": False, "message": "Invalid role"}), 400
 
-    hashed_pw = generate_password_hash(password)
-    new_user = User(str(user_id_counter), username, hashed_pw, role)
-    users[str(user_id_counter)] = new_user
-    user_id_counter += 1
-    return jsonify({"success": True, "message": "User registered successfully"})
+    db = SessionLocal()
+    try:
+        existing = db.query(Users).filter_by(firstname=firstname).first()
+        if existing:
+            return jsonify({"success": False, "message": "Username already exists"}), 400
+
+        hashed_pw = generate_password_hash(password)
+        user = Users(
+            firstname=firstname,
+            lastname=lastname,
+            email=email,
+            phoneno=phoneno,
+            cnic=cnic,
+            dob=dob,
+            password=hashed_pw,
+            role=role
+        )
+        db.add(user)
+        db.flush()  # get user ID
+
+        # Adds into role-specific table depending on role given in signup
+        if role == "Admin":
+            db.add(Admin(userid=user.userid))
+        elif role == "Courtregistrar":
+            db.add(Courtregistrar(userid=user.userid))
+        elif role == "Caseparticipant":
+            db.add(Caseparticipant(userid=user.userid))
+        elif role == "Lawyer":
+            db.add(Lawyer(userid=user.userid, barlicenseno=99999999))  # Dummy bar license for now
+        elif role == "Judge":
+            db.add(Judge(userid=user.userid))
+
+        db.commit()
+        return jsonify({"success": True, "message": "User registered successfully"})
+    except Exception as e:
+        db.rollback()
+        print("Signup error:", e)
+        return jsonify({"success": False, "message": "Server error"}), 500
+    finally:
+        db.close()
 
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json()
-    username = data.get("username")
+    firstname = data.get("firstname")
     password = data.get("password")
 
-    for user in users.values():
-        if user.username == username and check_password_hash(user.password_hash, password):
+    db = SessionLocal()
+    try:
+        user = db.query(Users).filter_by(firstname=firstname).first()
+        if user and check_password_hash(user.password, password):
             login_user(user)
             return jsonify({
                 "success": True,
                 "message": "Logged in",
-                "username": user.username,
+                "username": user.firstname,
                 "role": user.role
             })
-
-    return jsonify({"success": False, "message": "Invalid credentials"}), 401
+        return jsonify({"success": False, "message": "Invalid credentials"}), 401
+    finally:
+        db.close()
 
 @app.route("/api/dashboard", methods=["GET"])
 @login_required
@@ -67,7 +114,7 @@ def dashboard():
     return jsonify({
         "success": True,
         "user": {
-            "username": current_user.username,
+            "username": current_user.firstname,
             "role": current_user.role
         }
     })

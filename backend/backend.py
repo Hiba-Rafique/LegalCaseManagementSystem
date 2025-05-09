@@ -1,21 +1,25 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import psycopg2
-import bcrypt
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
+from werkzeug.security import generate_password_hash
+from models import Users, Base  
 import os
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Adjust static folder to point to Vite build
+# Flask setup
 app = Flask(__name__, static_folder="../lcms-frontend/dist", static_url_path="/")
-
-# Allow dynamic origin + credentials
 CORS(app, supports_credentials=True)
 
-def get_db_connection():
-    return psycopg2.connect(os.getenv("DATABASE_URL"))
+# SQLAlchemy engine and session setup
+DATABASE_URL = os.getenv("DATABASE_URL")
+engine = create_engine(DATABASE_URL)
+Base.metadata.bind = engine
+SessionLocal = sessionmaker(bind=engine)
 
 @app.route('/signup', methods=['POST', 'OPTIONS'])
 def signup():
@@ -28,48 +32,49 @@ def signup():
     }
 
     if request.method == 'OPTIONS':
-        return ('', 204, headers)
+        return '', 204, headers
 
     data = request.get_json(force=True)
-    FirstName = data.get("FirstName", "").strip()
+    firstname = data.get("FirstName", "").strip()
     password = data.get("password", "")
-    role = data.get("role", "").capitalize()  # Capitalize role to match enum values
+    role = data.get("role", "").capitalize()
 
-    if not (FirstName and password and role):
+    if not (firstname and password and role):
         return jsonify(success=False, message="Missing required fields"), 400, headers
 
-    conn = None
-    cursor = None
+    session = SessionLocal()
 
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT 1 FROM users WHERE FirstName = %s", (FirstName,))
-        if cursor.fetchone():
+        existing_user = session.query(Users).filter_by(firstname=firstname).first()
+        if existing_user:
             return jsonify(success=False, message="Username already exists."), 409, headers
 
-        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        cursor.execute(
-            "INSERT INTO users (FirstName, password, role) VALUES (%s, %s, %s)",
-            (FirstName, hashed, role)
-        )
-        conn.commit()
+        hashed_pw = generate_password_hash(password)
 
-    except psycopg2.Error as err:
-        print(f"Database error: {err}")
-        return jsonify(success=False, message="Database error."), 500, headers
+        new_user = Users(
+            firstname=firstname,
+            password=hashed_pw,
+            role=role
+        )
+        session.add(new_user)
+        session.commit()
+
+    except IntegrityError as e:
+        session.rollback()
+        print(f"Integrity error: {e}")
+        return jsonify(success=False, message="Role must be valid."), 400, headers
+
+    except Exception as e:
+        session.rollback()
+        print(f"Error: {e}")
+        return jsonify(success=False, message="Server error."), 500, headers
 
     finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        session.close()
 
     return jsonify(success=True, message="Signup successful."), 201, headers
 
-
-# Serve static frontend from dist/
+# Serve frontend
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_react(path):
