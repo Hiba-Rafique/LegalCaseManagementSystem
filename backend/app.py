@@ -45,9 +45,12 @@ def signup():
     cnic = data.get("cnic")
     dob = data.get("dob")
     password = data.get("password")
-    role = data.get("role", "user").capitalize()
+    role = data.get("role", "user").strip()
 
-    valid_roles = ["Admin", "Courtregistrar", "Caseparticipant", "Lawyer", "Judge"]
+    # Normalize role to remove extra spaces and capitalize
+    role = role.replace(" ", "").capitalize()  # Remove spaces and capitalize
+
+    valid_roles = ["Admin", "CourtRegistrar", "CaseParticipant", "Lawyer", "Judge"]
     if role not in valid_roles:
         return jsonify({"success": False, "message": "Invalid role"}), 400
 
@@ -58,6 +61,11 @@ def signup():
             return jsonify({"success": False, "message": "Username already exists"}), 400
 
         hashed_pw = generate_password_hash(password)
+
+        # Normalize role to ensure correct value
+        if role == "CourtRegistrar":  # Ensure it matches the model's exact case
+            role = "CourtRegistrar"
+
         user = Users(
             firstname=firstname,
             lastname=lastname,
@@ -72,7 +80,7 @@ def signup():
         db.flush()
         db.commit()
 
-        session['user_id'] = user.userid 
+        session['user_id'] = user.userid
         login_user(user)
 
     except Exception as e:
@@ -88,6 +96,7 @@ def signup():
         "message": "Signup successful. Please complete your profile.",
         "user_id": user.userid
     }), 201
+
 
 @app.route('/api/complete-profile', methods=['POST'])
 def complete_profile():
@@ -107,8 +116,9 @@ def complete_profile():
         profile_data = data.get('profile_data', {})
         print(f"Profile data: {profile_data}")
 
+        print(f"User role: {user.role}")
         if user.role == 'CaseParticipant':
-            address = profile_data.get('address')
+            address = data.get('address')
             if address:
                 client = Caseparticipant(userid=user.userid, address=address)
                 db.add(client)
@@ -139,9 +149,9 @@ def complete_profile():
                 print("One or more required Lawyer fields are missing.")
 
         elif user.role == 'Judge':
-            position = profile_data.get('position')
-            specialization = profile_data.get('specialization')
-            experience = profile_data.get('experience')
+            position = data.get('position')
+            specialization = data.get('specialization')
+            experience = data.get('experience')
             if position and specialization and experience:
                 judge = Judge(
                     userid=user.userid,
@@ -154,7 +164,7 @@ def complete_profile():
                 print(f"Inserted Judge: {judge}")
 
         elif user.role == 'Court Registrar':
-            position = profile_data.get('position')
+            position = data.get('position')
             if position:
                 registrar = Courtregistrar(userid=user.userid, position=position)
                 db.add(registrar)
