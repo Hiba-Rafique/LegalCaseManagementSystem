@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, Button, Modal, Form, ListGroup, Nav, Badge, 
 import { Plus, Building2, Users, Gavel, Briefcase, DollarSign, UserCheck, FileText, Search, Trash2, Edit2, ArrowLeft, Bell, User, Eye, Mail, Phone, MapPin, Award, Upload, Edit3, Save } from 'lucide-react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import lawImage from '../assets/law.png'
+import { useLocation } from 'react-router-dom';
 
 // Mock data for demonstration
 const mockJudges = [
@@ -51,7 +52,7 @@ const RegistrarDashboard = () => {
   // Courts state
   const [courts, setCourts] = useState([]);
   const [showCourtModal, setShowCourtModal] = useState(false);
-  const [courtForm, setCourtForm] = useState({ name: '', location: '' });
+  const [courtForm, setCourtForm] = useState({ name: '', courtId: '', location: '', type: '' });
   const [editingCourt, setEditingCourt] = useState(null);
   const [selectedCourt, setSelectedCourt] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -137,10 +138,25 @@ const RegistrarDashboard = () => {
   const [profileImage, setProfileImage] = useState(() => localStorage.getItem(PROFILE_IMAGE_KEY) || null);
   const fileInputRef = useRef(null);
 
+  const location = useLocation();
+
   useEffect(() => {
     const storedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
     if (storedImage) setProfileImage(storedImage);
   }, []);
+
+  useEffect(() => {
+    // On mount or route change, load registered court from localStorage
+    const savedCourt = localStorage.getItem('registeredCourt');
+    if (savedCourt) {
+      const court = JSON.parse(savedCourt);
+      setCourts([court]);
+      setSelectedCourt(court);
+    } else {
+      setCourts([]);
+      setSelectedCourt(null);
+    }
+  }, [location.pathname]);
 
   const handleProfileImageUpload = (event) => {
     const file = event.target.files[0];
@@ -154,24 +170,6 @@ const RegistrarDashboard = () => {
     }
   };
   const triggerProfileImageUpload = () => fileInputRef.current.click();
-
-  // Load court from localStorage on mount
-  useEffect(() => {
-    const savedCourt = localStorage.getItem('registeredCourt');
-    if (savedCourt) {
-      const court = JSON.parse(savedCourt);
-      setCourts([court]);
-      setSelectedCourt(court);
-      setActiveTab('courtRooms');
-    }
-  }, []);
-
-  // Save court to localStorage when registered
-  useEffect(() => {
-    if (courts.length === 1) {
-      localStorage.setItem('registeredCourt', JSON.stringify(courts[0]));
-    }
-  }, [courts]);
 
   // Toast helpers
   const showToast = (message, variant = 'success') => {
@@ -205,7 +203,7 @@ const RegistrarDashboard = () => {
         setActiveTab('courtRooms');
         showToast('Court registered!');
       }
-      setCourtForm({ name: '', location: '' });
+      setCourtForm({ name: '', courtId: '', location: '', type: '' });
       setShowCourtModal(false);
       setEditingCourt(null);
       setLoading(false);
@@ -213,7 +211,7 @@ const RegistrarDashboard = () => {
   };
   const handleEditCourt = (court) => {
     setEditingCourt(court);
-    setCourtForm({ name: court.name, location: court.location });
+    setCourtForm({ name: court.name, courtId: court.courtId, location: court.location, type: court.type });
     setShowCourtModal(true);
   };
   const handleDeleteCourt = (court) => {
@@ -395,6 +393,99 @@ const RegistrarDashboard = () => {
     localStorage.clear();
     window.location.href = '/login';
   };
+
+  // Helper to get CourtRegistrar info from localStorage (from signup)
+  const getCourtRegistrarInfo = () => {
+    const saved = localStorage.getItem('CourtRegistrarProfile');
+    if (saved) return JSON.parse(saved);
+    // fallback
+    return { name: '', email: '', phone: '', cnic: '', dob: '' };
+  };
+  const [courtRegistrarInfo] = useState(getCourtRegistrarInfo());
+
+  if (courts.length === 0) {
+    return (
+      <div style={{ minHeight: '100vh', width: '100vw', background: 'linear-gradient(135deg, #e0e7ef 60%, #c9e7fa 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto', position: 'relative' }}>
+        {/* Decorative background image */}
+        <img src={lawImage} alt="background" style={{ position: 'absolute', top: 0, right: 0, width: 320, opacity: 0.08, pointerEvents: 'none', zIndex: 0 }} />
+        <Card className="shadow-sm" style={{ maxWidth: 480, width: '100%', borderRadius: 16, padding: '2.5rem 0', zIndex: 1, background: 'rgba(255,255,255,0.98)' }}>
+          <Card.Body>
+            {/* Registrar Info Section */}
+            <div className="mb-4 text-center">
+              <div className="mb-2">
+                <span className="fw-bold" style={{ fontSize: 22, color: '#22304a' }}>Welcome, {courtRegistrarInfo.name || 'CourtRegistrar'}!</span>
+              </div>
+              <div className="text-muted mb-1">Please register your court to continue.</div>
+              <div className="d-flex flex-wrap justify-content-center gap-3 mt-2" style={{ fontSize: 15 }}>
+                <span><b>Email:</b> {courtRegistrarInfo.email || 'N/A'}</span>
+                <span><b>Phone:</b> {courtRegistrarInfo.phone || 'N/A'}</span>
+                <span><b>CNIC:</b> {courtRegistrarInfo.cnic || 'N/A'}</span>
+                <span><b>DOB:</b> {courtRegistrarInfo.dob || 'N/A'}</span>
+              </div>
+            </div>
+            <h2 className="fw-bold mb-3 text-center">Register Your Court</h2>
+            <Form onSubmit={handleCourtSubmit}>
+              <Row className="g-3">
+                <Col xs={12} sm={6}>
+                  <Form.Group>
+                    <Form.Label>Court Name</Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="name"
+                      value={courtForm.name}
+                      onChange={handleCourtFormChange}
+                      required
+                      autoFocus
+                    />
+                  </Form.Group>
+                </Col>
+                <Col xs={12} sm={6}>
+                  <Form.Group>
+                    <Form.Label>Court ID</Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="courtId"
+                      value={courtForm.courtId}
+                      onChange={handleCourtFormChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+                <Col xs={12} sm={6}>
+                  <Form.Group>
+                    <Form.Label>Location</Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="location"
+                      value={courtForm.location}
+                      onChange={handleCourtFormChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+                <Col xs={12} sm={6}>
+                  <Form.Group>
+                    <Form.Label>Type</Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="type"
+                      value={courtForm.type}
+                      onChange={handleCourtFormChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+              <Button variant="primary" type="submit" className="w-100 mt-4" disabled={loading} style={{ fontWeight: 600, fontSize: '1.1rem', borderRadius: 8 }}>
+                {loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}
+                Register Court
+              </Button>
+            </Form>
+          </Card.Body>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', width: '100vw', height: '100vh', overflow: 'hidden', background: '#f4f6fa', display: 'flex', flexDirection: 'column' }}>
@@ -715,12 +806,33 @@ const RegistrarDashboard = () => {
               />
             </Form.Group>
             <Form.Group className="mb-3">
+              <Form.Label>Court ID</Form.Label>
+              <Form.Control
+                type="text"
+                name="courtId"
+                value={courtForm.courtId}
+                onChange={handleCourtFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
               <Form.Label>Location</Form.Label>
               <Form.Control
                 type="text"
                 name="location"
                 value={courtForm.location}
                 onChange={handleCourtFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Type</Form.Label>
+              <Form.Control
+                type="text"
+                name="type"
+                value={courtForm.type}
+                onChange={handleCourtFormChange}
+                required
               />
             </Form.Group>
           </Modal.Body>

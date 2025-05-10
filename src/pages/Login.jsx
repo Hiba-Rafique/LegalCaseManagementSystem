@@ -15,7 +15,7 @@ const MOCK_LAWYER = {
   email: 'lawyer@example.com',
   password: 'password123',
 };
-const MOCK_REGISTRAR = {
+const MOCK_COURTREGISTRAR = {
   email: 'registrar@example.com',
   password: 'registrar123',
 };
@@ -51,10 +51,10 @@ const Login = () => {
     email === MOCK_LAWYER.email &&
     password === MOCK_LAWYER.password;
 
-  const isMockRegistrar =
-    userType === 'registrar' &&
-    email === MOCK_REGISTRAR.email &&
-    password === MOCK_REGISTRAR.password;
+  const isMockCourtRegistrar =
+    userType === 'CourtRegistrar' &&
+    email === MOCK_COURTREGISTRAR.email &&
+    password === MOCK_COURTREGISTRAR.password;
 
   try {
     const response = await fetch('/api/login', {
@@ -73,14 +73,14 @@ const Login = () => {
 
       if (role === 'Lawyer') {
         navigate('/dashboard');
-      } else if (role === 'Registrar') {
+      } else if (role === 'CourtRegistrar') {
         navigate('/registrar-dashboard');
       } else {
         setError('Unknown role.');
       }
-    } else if (isMockLawyer || isMockRegistrar) {
+    } else if (isMockLawyer || isMockCourtRegistrar) {
       // Fallback to mock credentials if API fails
-      const role = isMockLawyer ? 'Lawyer' : 'Registrar';
+      const role = isMockLawyer ? 'Lawyer' : 'CourtRegistrar';
       localStorage.setItem('userRole', role);
       localStorage.setItem('email', email);
 
@@ -90,8 +90,8 @@ const Login = () => {
     }
   } catch (err) {
     // Network/API down → check mock credentials
-    if (isMockLawyer || isMockRegistrar) {
-      const role = isMockLawyer ? 'Lawyer' : 'Registrar';
+    if (isMockLawyer || isMockCourtRegistrar) {
+      const role = isMockLawyer ? 'Lawyer' : 'CourtRegistrar';
       localStorage.setItem('userRole', role);
       localStorage.setItem('email', email);
 
@@ -135,12 +135,12 @@ const Login = () => {
                 />
                 <Form.Check
                   type="radio"
-                  label="Court Registrar"
+                  label="CourtRegistrar"
                   name="userType"
-                  id="userType-registrar"
-                  value="registrar"
-                  checked={userType === 'registrar'}
-                  onChange={() => setUserType('registrar')}
+                  id="userType-courtregistrar"
+                  value="CourtRegistrar"
+                  checked={userType === 'CourtRegistrar'}
+                  onChange={() => setUserType('CourtRegistrar')}
                 />
               </div>
             </Form.Group>
