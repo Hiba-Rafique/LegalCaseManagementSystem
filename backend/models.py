@@ -188,6 +188,18 @@ class Users(Base):
     lawyer: Mapped[List['Lawyer']] = relationship('Lawyer', back_populates='users')
     caseparticipant: Mapped[List['Caseparticipant']] = relationship('Caseparticipant', back_populates='users')
 
+    @property
+    def is_active(self):
+        # Return True for all users, or add your custom logic here
+        return True
+    
+    @property
+    def is_authenticated(self):
+        # Return True for all users, or add your custom logic here
+        return True
+    
+    def get_id(self):
+        return str(self.userid)
 
 class Witnesscase(Base):
     __tablename__ = 'witnesscase'
