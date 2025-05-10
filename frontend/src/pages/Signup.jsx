@@ -13,7 +13,7 @@ import { Eye, EyeOff } from 'lucide-react';
 
 const roles = [
   'Client',
-  'Court Registrar',
+  'CourtRegistrar',
   'Lawyer',
   'Judge',
   'Admin'
@@ -115,21 +115,25 @@ const Signup = () => {
     if (!validateStep()) return;
     setIsLoading(true);
     try {
-      const response = await fetch('/api/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      const result = await response.json();
-      if (response.ok) {
-        // Success: maybe navigate to complete profile or dashboard
-      } else {
-        setError(result.message || 'Signup failed.');
-        setIsLoading(false);
-        return;
+      // Save CourtRegistrar info to localStorage for dashboard
+      if (form.role === 'CourtRegistrar') {
+        localStorage.setItem('CourtRegistrarProfile', JSON.stringify({
+          name: form.firstname + ' ' + form.lastname,
+          email: form.email,
+          phone: form.phoneno,
+          cnic: form.cnic,
+          dob: form.dob
+        }));
       }
       await new Promise(resolve => setTimeout(resolve, 1500));
-      navigate('/complete-profile', { state: { role: form.role } });
+      // Role-based navigation after signup
+      if (form.role === 'CourtRegistrar') {
+        navigate('/registrar-dashboard');
+      } else if (form.role === 'Lawyer') {
+        navigate('/dashboard');
+      } else {
+        navigate('/dashboard'); // fallback
+      }
     } catch (apiError) {
       setError('Signup failed. Please try again later.');
       setIsLoading(false);

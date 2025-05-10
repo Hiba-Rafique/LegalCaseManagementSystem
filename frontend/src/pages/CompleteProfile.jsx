@@ -34,6 +34,7 @@ const getRoleFields = (role) => {
 const CompleteProfile = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  // Assume role is passed via navigation state or fallback to 'Client'
   const role = location.state?.role || 'Client';
   const [form, setForm] = useState({});
   const [error, setError] = useState(null);
