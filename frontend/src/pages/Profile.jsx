@@ -103,8 +103,15 @@ const Profile = () => {
   if (error) return <div className="alert alert-danger mt-5">{error}</div>;
 
   return (
-    <div className="profile-bg">
-      <div className="profile-card-centered">
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#f8f9fa',
+        padding: '2rem 1rem',
+        overflowY: 'auto'
+      }}
+    >
+      <div style={{ maxWidth: '1300px', margin: '0 auto' }}>
         <Container fluid className="p-0">
           <Row className="g-4">
             {/* Profile Header */}

@@ -9,6 +9,7 @@ import {
 import '../styles/Signup.css'; // We will add custom CSS here
 import legalSignupImage from '../assets/legal-signup.png'; // Background image
 import legalLoginImage from '../assets/legal-login.png'; // Use as logo at the top
+import { Eye, EyeOff } from 'lucide-react';
 
 const roles = [
   'Client',
@@ -59,6 +60,7 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(0);
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
 
   const isEmailValid = (email) => /\S+@\S+\.\S+/.test(email);
   const isPasswordStrong = (password) => password.length >= 8;
@@ -74,15 +76,15 @@ const Signup = () => {
       if (field.required && (!value || value.trim() === '')) {
         setError(`${field.label} is required.`);
         return false;
-      }
+    }
       if (field.name === 'email' && value && !isEmailValid(value)) {
-        setError('Please enter a valid email address.');
+      setError('Please enter a valid email address.');
         return false;
-      }
+    }
       if (field.name === 'password' && value && !isPasswordStrong(value)) {
-        setError('Password must be at least 8 characters long.');
+      setError('Password must be at least 8 characters long.');
         return false;
-      }
+    }
       if (field.name === 'firstname' && value && value.trim().length < 2) {
         setError('First name must be at least 2 characters.');
         return false;
@@ -90,7 +92,7 @@ const Signup = () => {
       if (field.name === 'lastname' && value && value.trim().length < 2) {
         setError('Last name must be at least 2 characters.');
         return false;
-      }
+    }
     }
     return true;
   };
@@ -144,13 +146,13 @@ const Signup = () => {
           {steps.map((s, idx) => (
             <div key={s.label} style={{width: 18, height: 18, borderRadius: '50%', background: idx === step ? '#2563eb' : '#e0e7ef', border: '2px solid #2563eb', display: 'inline-block'}}></div>
           ))}
-        </div>
+  </div>
         <h5 className="mb-3">{steps[step].label}</h5>
-        {error && (
-          <Alert variant="danger" onClose={() => setError(null)} dismissible>
-            {error}
-          </Alert>
-        )}
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)} dismissible>
+          {error}
+        </Alert>
+      )}
         <Form onSubmit={step === steps.length - 1 ? handleSubmit : handleNext} style={{width: '100%'}}>
           {steps[step].fields.map(field => (
             <Form.Group className="mb-3" key={field.name}>
@@ -168,6 +170,28 @@ const Signup = () => {
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </Form.Select>
+              ) : field.type === 'password' ? (
+                <div style={{ position: 'relative' }}>
+                  <Form.Control
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder={field.placeholder}
+                    name={field.name}
+                    value={form[field.name]}
+                    onChange={handleChange}
+                    required={field.required}
+                    aria-required={field.required}
+                    style={{ paddingRight: 40 }}
+                  />
+                  <span
+                    onClick={() => setShowPassword((v) => !v)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#888' }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </span>
+                </div>
               ) : (
                 <Form.Control
                   type={field.type}
@@ -189,20 +213,20 @@ const Signup = () => {
               <Button variant="primary" type="submit" className="ms-auto" disabled={isLoading}>Next</Button>
             ) : (
               <Button variant="primary" type="submit" className="ms-auto" disabled={isLoading}>
-                {isLoading ? (
+          {isLoading ? (
                   <><Spinner animation="border" size="sm" className="me-2" /> Signing Up...</>
-                ) : (
-                  'Sign Up'
-                )}
-              </Button>
+          ) : (
+            'Sign Up'
+          )}
+        </Button>
             )}
           </div>
-        </Form>
-        <p className="mt-3 text-center">
-          Already have an account? <Link to="/login">Log In</Link>
-        </p>
-      </div>
+      </Form>
+      <p className="mt-3 text-center">
+        Already have an account? <Link to="/login">Log In</Link>
+      </p>
     </div>
+  </div>
   );
 };
 

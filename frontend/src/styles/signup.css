@@ -30,8 +30,8 @@ body, html {
     align-items: center;
     border: 1.5px solid #e0e7ef;
     position: relative;
-}
-
+  }
+  
 .signup-logo {
     width: 64px;
     height: 64px;
@@ -45,8 +45,8 @@ body, html {
     font-weight: 800;
     text-align: center;
     color: #1e293b;
-}
-
+  }
+  
 .signup-form-card p.text-muted {
     margin-bottom: 2rem;
     text-align: center;
@@ -92,5 +92,5 @@ body, html {
         width: 48px;
         height: 48px;
     }
-}
+  }
   
