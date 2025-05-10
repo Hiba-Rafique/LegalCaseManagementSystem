@@ -8,37 +8,81 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const fileInputRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [profileData, setProfileData] = useState({
-    firstName: 'John',
-    lastName: 'Smith',
-    email: 'john.smith@example.com',
-    phone: '+1 (555) 123-4567',
-    specialization: 'Corporate Law',
-    cnic: '12345-6789012-3',
-    dob: '1985-05-15',
-    barLicense: 'BAR-2023-12345',
-    experience: '15',
-    bio: '',
-    education: [
-      { degree: 'Juris Doctor', school: 'Harvard Law School', year: '2008' },
-      { degree: 'Bachelor of Arts in Political Science', school: 'Yale University', year: '2005' }
-    ],
-    certifications: [
-      'New York State Bar',
-      'American Bar Association',
-      'International Bar Association'
-    ]
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    specialization: '',
+    cnic: '',
+    dob: '',
+    barLicense: '',
+    experience: '',
   });
 
   useEffect(() => {
     const storedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
     if (storedImage) setProfileImage(storedImage);
+
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch('/api/lawyerprofile', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+          },
+        });
+
+        const result = await res.json();
+        if (!res.ok || !result.success) throw new Error(result.message || 'Failed to load profile');
+
+        const data = result.data;
+
+        setProfileData({
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          specialization: data.specialization || '',
+          cnic: data.cnic || '',
+          dob: data.dob || '',
+          barLicense: data.barLicense || '',
+          experience: data.experience || '',
+        });
+      } catch (err) {
+        setError(err.message || 'An error occurred while loading the profile.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
   }, []);
 
   const handleEdit = () => setIsEditing(!isEditing);
-  const handleSave = () => {
-    // TODO: Save to backend
-    setIsEditing(false);
+
+  const handleSave = async () => {
+    try {
+      const res = await fetch('/api/lawyerprofile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.message || 'Failed to update profile');
+
+      setIsEditing(false);
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const handleImageUpload = (event) => {
@@ -54,6 +98,9 @@ const Profile = () => {
   };
 
   const triggerImageUpload = () => fileInputRef.current.click();
+
+  if (loading) return <div className="text-center mt-5">Loading profile...</div>;
+  if (error) return <div className="alert alert-danger mt-5">{error}</div>;
 
   return (
     <div className="profile-bg">
@@ -255,57 +302,10 @@ const Profile = () => {
                           />
                         </Form.Group>
                       </Col>
-                      <Col md={12}>
-                        <Form.Group>
-                          <Form.Label>Bio</Form.Label>
-                          <Form.Control
-                            as="textarea"
-                            rows={3}
-                            value={profileData.bio}
-                            disabled={!isEditing}
-                            onChange={(e) =>
-                              setProfileData({ ...profileData, bio: e.target.value })
-                            }
-                          />
-                        </Form.Group>
-                      </Col>
                     </Row>
                   </Form>
                 </Card.Body>
               </Card>
-
-              {/* Education & Certifications */}
-              <Row className="g-4">
-                <Col xs={12} md={6}>
-                  <Card className="shadow-sm h-100">
-                    <Card.Body>
-                      <h5 className="mb-3">Education</h5>
-                      {profileData.education.map((edu, index) => (
-                        <div key={index} className="mb-3">
-                          <h6 className="mb-1">{edu.degree}</h6>
-                          <p className="text-muted mb-1">{edu.school}</p>
-                          <small className="text-muted">{edu.year}</small>
-                        </div>
-                      ))}
-                    </Card.Body>
-                  </Card>
-                </Col>
-                <Col xs={12} md={6}>
-                  <Card className="shadow-sm h-100">
-                    <Card.Body>
-                      <h5 className="mb-3">Certifications</h5>
-                      <ul className="list-unstyled mb-0">
-                        {profileData.certifications.map((cert, index) => (
-                          <li key={index} className="mb-2">
-                            <Award size={16} className="me-2 text-primary" />
-                            {cert}
-                          </li>
-                        ))}
-                      </ul>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              </Row>
             </Col>
           </Row>
         </Container>

@@ -34,7 +34,6 @@ const getRoleFields = (role) => {
 const CompleteProfile = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  // Assume role is passed via navigation state or fallback to 'Client'
   const role = location.state?.role || 'Client';
   const [form, setForm] = useState({});
   const [error, setError] = useState(null);
@@ -95,21 +94,19 @@ const CompleteProfile = () => {
     if (!validateStep()) return;
     setIsLoading(true);
     try {
-      // TODO: Call your complete profile API here
-      // Example using fetch:
-      // const response = await fetch('/api/complete-profile', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(form)
-      // });
-      // const result = await response.json();
-      // if (response.ok) {
-      //   // Success: maybe navigate to dashboard
-      // } else {
-      //   setError(result.message || 'Profile completion failed.');
-      //   setIsLoading(false);
-      //   return;
-      // }
+      const response = await fetch('/api/complete-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      const result = await response.json();
+      if (response.ok) {
+        // Success: maybe navigate to dashboard
+      } else {
+        setError(result.message || 'Profile completion failed.');
+        setIsLoading(false);
+        return;
+      }
       await new Promise(resolve => setTimeout(resolve, 1200));
       navigate('/dashboard');
     } catch (err) {

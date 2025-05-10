@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Image } from 'react-bootstrap';
-import { User, Bell } from 'lucide-react';
+import { User } from 'lucide-react';
 import SidebarNav from '../components/dashboard/SidebarNav';
 import CaseOverview from '../components/dashboard/CaseOverview';
 import CalendarSummary from '../components/dashboard/CalendarSummary';
@@ -13,40 +13,44 @@ const PROFILE_IMAGE_KEY = 'lawyerProfileImage';
 const Dashboard = () => {
   const [activeView, setActiveView] = useState('cases');
   const [profileImage, setProfileImage] = useState(null);
+  const [lawyerData, setLawyerData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // Replace mock lawyerData with data from localStorage (or fallback)
-  const getLawyerData = () => {
-    const stored = localStorage.getItem('lawyerProfileData');
-    if (stored) {
-      const data = JSON.parse(stored);
-      return {
-        name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'John Smith',
-        specialization: data.specialization || 'Corporate Law',
-        barLicense: data.barLicense || 'BAR-2023-12345',
-      };
-    }
-    // fallback
-    return {
-      name: 'John Smith',
-      specialization: 'Corporate Law',
-      barLicense: 'BAR-2023-12345',
-    };
-  };
-  const [lawyerData, setLawyerData] = useState(getLawyerData());
-
   useEffect(() => {
-    // Load profile image from localStorage if available
-    const storedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
-    setProfileImage(storedImage || 'https://via.placeholder.com/40');
-    // Listen for storage changes (in case profile is updated in another tab)
-    const handleStorage = () => {
-      const updatedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
-      setProfileImage(updatedImage || 'https://via.placeholder.com/40');
-      setLawyerData(getLawyerData()); // update lawyer data if profile changes
+    const fetchLawyerData = async () => {
+      try {
+        const response = await fetch('/api/dashboard', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('userToken')}`, // Optional: add if using JWT
+          },
+          credentials: 'include', // Required if session cookie is used
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch lawyer data');
+        }
+
+        const result = await response.json();
+
+        if (result.success) {
+          setLawyerData(result.user); // ✅ updated to match backend response
+          const storedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
+          setProfileImage(storedImage || 'https://via.placeholder.com/40');
+        } else {
+          setError('Failed to load user data.');
+        }
+      } catch (err) {
+        setError(err.message || 'An error occurred while fetching lawyer data');
+      } finally {
+        setLoading(false);
+      }
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+
+    fetchLawyerData();
   }, []);
 
   const handleProfileClick = () => {
@@ -66,8 +70,20 @@ const Dashboard = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+        <div className="spinner-border text-primary" role="status"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="alert alert-danger">{error}</div>;
+  }
+
   return (
-    <div style={{ minHeight: '100vh', width: '100vw', height: '100vh', overflow: 'hidden', background: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', width: '100vw', overflow: 'hidden', background: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div className="bg-white border-bottom p-3" style={{ flex: '0 0 auto' }}>
         <div className="d-flex justify-content-between align-items-center">
@@ -83,8 +99,8 @@ const Dashboard = () => {
                 className="border"
               />
               <div>
-                <h6 className="mb-0">{lawyerData.name}</h6>
-                <small className="text-muted">{lawyerData.specialization}</small>
+                <h6 className="mb-0">{lawyerData?.username}</h6> {/* ✅ updated */}
+                <small className="text-muted">{lawyerData?.specialization}</small>
               </div>
             </div>
           </div>
@@ -108,10 +124,8 @@ const Dashboard = () => {
           <SidebarNav activeView={activeView} onViewChange={setActiveView} />
         </div>
         {/* Content Area */}
-        <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0 }}>
-            {renderContent()}
-          </div>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {renderContent()}
         </div>
       </div>
     </div>

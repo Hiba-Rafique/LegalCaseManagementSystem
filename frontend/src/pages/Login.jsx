@@ -29,62 +29,56 @@ const Login = () => {
 
   const isEmailValid = (email) => /\S+@\S+\.\S+/.test(email);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setError(null);
+ const handleSubmit = async (event) => {
+  event.preventDefault();
+  setError(null);
 
-    if (!email || !isEmailValid(email)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    if (!password) {
-      setError('Password is required.');
-      return;
-    }
+  if (!email || !isEmailValid(email)) {
+    setError('Please enter a valid email address.');
+    return;
+  }
+  if (!password) {
+    setError('Password is required.');
+    return;
+  }
 
-    setIsLoading(true);
-    try {
-      // TODO: Call your login API here
-      // Example using fetch:
-      // const response = await fetch('/api/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email, password, userType })
-      // });
-      // const result = await response.json();
-      // if (response.ok) {
-      //   // Success: store token, navigate to dashboard, etc.
-      // } else {
-      //   setError(result.message || 'Login failed.');
-      //   setIsLoading(false);
-      //   return;
-      // }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (
-        userType === 'lawyer' &&
-        email === MOCK_LAWYER.email &&
-        password === MOCK_LAWYER.password
-      ) {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', 'lawyer');
+  setIsLoading(true);
+  try {
+    // First, try the API login
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, userType }),
+      credentials: 'include', // To include the session cookie
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+      // API login succeeded: store role from API response
+      const { role } = result;
+      localStorage.setItem('userRole', role);
+      localStorage.setItem('email', result.email); // You can store email too if needed
+
+      // Navigate to the appropriate dashboard based on the role
+      if (role === 'Lawyer') {
         navigate('/dashboard');
-      } else if (
-        userType === 'registrar' &&
-        email === MOCK_REGISTRAR.email &&
-        password === MOCK_REGISTRAR.password
-      ) {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', 'registrar');
+      } else if (role === 'Registrar') {
         navigate('/registrar-dashboard');
-      } else {
-        setError('Invalid email or password.');
       }
+    } else {
+      // Handle error from API
+      setError(result.message || 'Login failed.');
       setIsLoading(false);
-    } catch (apiError) {
-      setError('Login failed. Please try again later.');
-      setIsLoading(false);
+      return;
     }
-  };
+
+    setIsLoading(false);
+  } catch (apiError) {
+    setError('Login failed. Please try again later.');
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="signup-bg" style={{ minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>

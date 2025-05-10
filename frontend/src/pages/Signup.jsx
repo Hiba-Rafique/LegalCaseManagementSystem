@@ -113,21 +113,19 @@ const Signup = () => {
     if (!validateStep()) return;
     setIsLoading(true);
     try {
-      // TODO: Call your signup API here
-      // Example using fetch:
-      // const response = await fetch('/api/signup', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(form)
-      // });
-      // const result = await response.json();
-      // if (response.ok) {
-      //   // Success: maybe navigate to complete profile or dashboard
-      // } else {
-      //   setError(result.message || 'Signup failed.');
-      //   setIsLoading(false);
-      //   return;
-      // }
+      const response = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      const result = await response.json();
+      if (response.ok) {
+        // Success: maybe navigate to complete profile or dashboard
+      } else {
+        setError(result.message || 'Signup failed.');
+        setIsLoading(false);
+        return;
+      }
       await new Promise(resolve => setTimeout(resolve, 1500));
       navigate('/complete-profile', { state: { role: form.role } });
     } catch (apiError) {
