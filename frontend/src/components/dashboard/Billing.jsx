@@ -16,47 +16,60 @@ const statusVariants = {
   'Paid': 'success',
 };
 
-const Billing = () => {
+const Billing = ({ payments, onCreatePayment }) => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
-  const [payments, setPayments] = useState(initialPayments);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
     date: '',
     caseName: '',
     description: '',
-    amount: '',
+    balance: '',
     status: 'Due',
-    method: '',
+    mode: '',
   });
   const [formError, setFormError] = useState('');
 
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
       const matchesSearch =
-        p.caseName.toLowerCase().includes(search.toLowerCase()) ||
-        p.description.toLowerCase().includes(search.toLowerCase());
+        p.casename.toLowerCase().includes(search.toLowerCase()) ||
+        p.purpose.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = status === 'All' || p.status === status;
       return matchesSearch && matchesStatus;
     });
   }, [search, status, payments]);
 
   const handleShowModal = () => {
-    setForm({ date: '', caseName: '', description: '', amount: '', status: 'Due', method: '' });
+    setForm({ date: '', caseName: '', description: '', balance: '', status: 'Due', mode: '' });
     setFormError('');
     setShowModal(true);
   };
+  
   const handleCloseModal = () => setShowModal(false);
+
   const handleFormChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
-  const handleFormSubmit = (e) => {
+
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!form.date || !form.caseName || !form.description || !form.amount || !form.status) {
+    if (!form.date || !form.caseName || !form.description || !form.balance || !form.status) {
       setFormError('Please fill in all required fields.');
       return;
     }
-    setPayments([{ ...form, amount: parseFloat(form.amount) }, ...payments]);
+
+    const newPayment = {
+      paymentdate: form.date,
+      casename: form.caseName,
+      purpose: form.description,
+      balance: parseFloat(form.balance),
+      status: form.status,
+      mode: form.mode,
+    };
+
+    await onCreatePayment(newPayment);
+
     setShowModal(false);
   };
 
@@ -102,7 +115,7 @@ const Billing = () => {
                     <th>Date</th>
                     <th>Case Name</th>
                     <th>Description</th>
-                    <th>Amount</th>
+                    <th>Balance</th>
                     <th>Status</th>
                     <th>Payment Method</th>
                   </tr>
@@ -115,16 +128,12 @@ const Billing = () => {
                   ) : (
                     filteredPayments.map((p, idx) => (
                       <tr key={idx}>
-                        <td>{p.date}</td>
-                        <td>{p.caseName}</td>
-                        <td>{p.description}</td>
-                        <td>${p.amount.toFixed(2)}</td>
-                        <td>
-                          <Badge bg={statusVariants[p.status] || 'secondary'} className="px-3 py-1 fs-6">
-                            {p.status}
-                          </Badge>
-                        </td>
-                        <td>{p.method}</td>
+                        <td>{p.paymentdate}</td>
+                        <td>{p.casename}</td>
+                        <td>{p.purpose}</td>
+                        <td>${p.balance.toFixed(2)}</td>
+                        <td>{p.status}</td>
+                        <td>{p.mode}</td>
                       </tr>
                     ))
                   )}
@@ -133,6 +142,7 @@ const Billing = () => {
             </div>
           </Card.Body>
         </Card>
+
         {/* Modal for New Payment */}
         <Modal show={showModal} onHide={handleCloseModal} centered>
           <Modal.Header closeButton>
@@ -154,8 +164,8 @@ const Billing = () => {
                 <Form.Control type="text" name="description" value={form.description} onChange={handleFormChange} required />
               </Form.Group>
               <Form.Group className="mb-3">
-                <Form.Label>Amount</Form.Label>
-                <Form.Control type="number" name="amount" value={form.amount} onChange={handleFormChange} required min="0" step="0.01" />
+                <Form.Label>Balance</Form.Label>
+                <Form.Control type="number" name="balance" value={form.balance} onChange={handleFormChange} required min="0" step="0.01" />
               </Form.Group>
               <Form.Group className="mb-3">
                 <Form.Label>Status</Form.Label>
@@ -167,7 +177,7 @@ const Billing = () => {
               </Form.Group>
               <Form.Group className="mb-3">
                 <Form.Label>Payment Method</Form.Label>
-                <Form.Control type="text" name="method" value={form.method} onChange={handleFormChange} />
+                <Form.Control type="text" name="mode" value={form.mode} onChange={handleFormChange} />
               </Form.Group>
             </Modal.Body>
             <Modal.Footer>
@@ -181,4 +191,4 @@ const Billing = () => {
   );
 };
 
-export default Billing; 
+export default Billing;

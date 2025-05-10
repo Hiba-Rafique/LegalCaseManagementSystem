@@ -11,7 +11,7 @@ const roleFieldMap = {
   'Case Participant': [
     { name: 'address', label: 'Address', type: 'text', placeholder: '123 Main St, City', required: true }
   ],
-  'Court Registrar': [
+  'CourtRegistrar': [
     { name: 'position', label: 'Position', type: 'text', placeholder: 'Registrar Position', required: true }
   ],
   'Lawyer': [
@@ -69,7 +69,7 @@ const CompleteProfile = () => {
       for (const field of fields) {
         const value = form[field.name];
         if (field.required && (!value || value.trim() === '')) {
-          setError(`${field.label} is required.`);
+          setError('${field.label} is required.');
           return false;
         }
       }
@@ -109,7 +109,11 @@ const CompleteProfile = () => {
         return;
       }
       await new Promise(resolve => setTimeout(resolve, 1200));
-      navigate('/dashboard');
+      if (role === 'CourtRegistrar') {
+        navigate('/registrar-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError('Profile completion failed. Please try again.');
       setIsLoading(false);

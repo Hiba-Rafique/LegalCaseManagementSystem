@@ -74,7 +74,7 @@ const Signup = () => {
     for (const field of steps[step].fields) {
       const value = form[field.name];
       if (field.required && (!value || value.trim() === '')) {
-        setError(`${field.label} is required.`);
+        setError('${field.label} is required.');
         return false;
     }
       if (field.name === 'email' && value && !isEmailValid(value)) {
@@ -115,27 +115,36 @@ const Signup = () => {
     if (!validateStep()) return;
     setIsLoading(true);
     try {
-      // Save CourtRegistrar info to localStorage for dashboard
-      if (form.role === 'CourtRegistrar') {
-        localStorage.setItem('CourtRegistrarProfile', JSON.stringify({
-          name: form.firstname + ' ' + form.lastname,
-          email: form.email,
-          phone: form.phoneno,
-          cnic: form.cnic,
-          dob: form.dob
-        }));
-      }
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // Role-based navigation after signup
-      if (form.role === 'CourtRegistrar') {
-        navigate('/registrar-dashboard');
-      } else if (form.role === 'Lawyer') {
-        navigate('/dashboard');
+      // API call to signup
+      const response = await fetch('/api/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        // Save CourtRegistrar info to localStorage for dashboard
+        if (form.role === 'CourtRegistrar') {
+          localStorage.setItem('CourtRegistrarProfile', JSON.stringify({
+            name: form.firstname + ' ' + form.lastname,
+            email: form.email,
+            phone: form.phoneno,
+            cnic: form.cnic,
+            dob: form.dob
+          }));
+        }
+        // Navigate to complete profile after signup, passing role in state
+        navigate('/CompleteProfile', { state: { role: form.role } });
       } else {
-        navigate('/dashboard'); // fallback
+        setError(data.message || 'Signup failed. Please try again later.');
       }
     } catch (apiError) {
-      setError('Signup failed. Please try again later.');
+      // If API call fails, fallback to mock success for development
+      navigate('/CompleteProfile', { state: { role: form.role } });
+      // Optionally, you can show a warning: setError('Backend not available, using mock signup.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -176,7 +185,7 @@ const Signup = () => {
                 </Form.Select>
               ) : field.type === 'password' ? (
                 <div style={{ position: 'relative' }}>
-                  <Form.Control
+          <Form.Control
                     type={showPassword ? 'text' : 'password'}
                     placeholder={field.placeholder}
                     name={field.name}
@@ -185,7 +194,7 @@ const Signup = () => {
                     required={field.required}
                     aria-required={field.required}
                     style={{ paddingRight: 40 }}
-                  />
+          />
                   <span
                     onClick={() => setShowPassword((v) => !v)}
                     style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#888' }}
@@ -197,7 +206,7 @@ const Signup = () => {
                   </span>
                 </div>
               ) : (
-                <Form.Control
+          <Form.Control
                   type={field.type}
                   placeholder={field.placeholder}
                   name={field.name}
@@ -205,9 +214,9 @@ const Signup = () => {
                   onChange={handleChange}
                   required={field.required}
                   aria-required={field.required}
-                />
+          />
               )}
-            </Form.Group>
+        </Form.Group>
           ))}
           <div className="d-flex justify-content-between align-items-center mt-3">
             {step > 0 && (

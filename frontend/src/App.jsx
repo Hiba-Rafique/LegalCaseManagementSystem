@@ -19,7 +19,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/complete-profile" element={<CompleteProfile />} />
+        
+        <Route path="/CompleteProfile" element={<CompleteProfile />} />
         
         {/* Dashboard and Profile routes with layout */}
         <Route 
@@ -48,4 +49,3 @@ function App() {
 }
 
 export default App;
-

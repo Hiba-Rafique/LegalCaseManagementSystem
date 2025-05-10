@@ -169,39 +169,67 @@ const RegistrarDashboard = () => {
     setTimeout(() => setToast({ show: false, message: '', variant: 'success' }), 2500);
   };
 
-  // COURT CRUD
+  
   const handleCourtFormChange = (e) => setCourtForm({ ...courtForm, [e.target.name]: e.target.value });
-  const handleCourtSubmit = (e) => {
-    e.preventDefault();
-    if (!courtForm.name.trim()) return;
-    if (courts.length >= 1 && !editingCourt) {
-      showToast('You can only register one court.', 'danger');
-      return;
-    }
-    setLoading(true);
-    setTimeout(() => {
-      if (editingCourt) {
-        const updatedCourt = { ...editingCourt, ...courtForm };
-        setCourts(courts.map(c => c.id === editingCourt.id ? updatedCourt : c));
-        showToast('Court updated!');
-      } else {
-        const newCourt = {
-          id: Date.now(),
-          name: courtForm.name,
-          location: courtForm.location,
-          rooms: [], judges: [], prosecutors: [], payments: [], appeals: [], cases: [],
-        };
-        setCourts([newCourt]);
-        setSelectedCourt(newCourt);
-        setActiveTab('courtRooms');
-        showToast('Court registered!');
-      }
+  const handleCourtSubmit = async (e) => {
+  e.preventDefault();
+  if (!courtForm.name.trim()) return;
+
+  if (courts.length >= 1 && !editingCourt) {
+    showToast('You can only register one court.', 'danger');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const response = await fetch('/api/court', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        courtname: courtForm.name,
+        location: courtForm.location,
+        type: courtForm.type,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      const newCourt = {
+        id: data.courtid,
+        name: data.court.name,
+        location: data.court.location,
+        type: data.court.type,
+        rooms: [],
+        judges: [],
+        prosecutors: [],
+        payments: [],
+        appeals: [],
+        cases: []
+      };
+
+      setCourts([newCourt]);
+      setSelectedCourt(newCourt);
+      setActiveTab('courtRooms');
+      showToast('Court registered!');
       setCourtForm({ name: '', courtId: '', location: '', type: '' });
       setShowCourtModal(false);
       setEditingCourt(null);
-      setLoading(false);
-    }, 700);
-  };
+    } else {
+      showToast(data.detail || 'Failed to create court.', 'danger');
+    }
+  } catch (error) {
+    showToast('Error connecting to server.', 'danger');
+  } finally {
+    setTimeout(() => {
+    setLoading(false);
+  }, 700);
+}
+  }
+
   const handleEditCourt = (court) => {
     setEditingCourt(court);
     setCourtForm({ name: court.name, courtId: court.courtId, location: court.location, type: court.type });

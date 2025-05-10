@@ -167,7 +167,7 @@ const Home = () => {
       </div>
 
       {/* Basic CSS for hover effect (can be moved to a CSS file) */}
-      <style jsx global>{`
+      <style>{`
         .hover-lift:hover {
           transform: translateY(-5px);
           box-shadow: 0 .75rem 1.5rem rgba(0,0,0,.1)!important;

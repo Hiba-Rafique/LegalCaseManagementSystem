@@ -296,19 +296,6 @@ const Profile = () => {
                           />
                         </Form.Group>
                       </Col>
-                      <Col md={12}>
-                        <Form.Group>
-                          <Form.Label>Specialization</Form.Label>
-                          <Form.Control
-                            type="text"
-                            value={profileData.specialization}
-                            disabled={!isEditing}
-                            onChange={(e) =>
-                              setProfileData({ ...profileData, specialization: e.target.value })
-                            }
-                          />
-                        </Form.Group>
-                      </Col>
                     </Row>
                   </Form>
                 </Card.Body>

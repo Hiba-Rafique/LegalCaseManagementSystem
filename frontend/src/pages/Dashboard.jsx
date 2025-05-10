@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Image } from 'react-bootstrap';
+import { Image } from 'react-bootstrap';
 import { User } from 'lucide-react';
 import SidebarNav from '../components/dashboard/SidebarNav';
 import CaseOverview from '../components/dashboard/CaseOverview';
@@ -16,6 +16,7 @@ const Dashboard = () => {
   const [activeView, setActiveView] = useState('cases');
   const [profileImage, setProfileImage] = useState(null);
   const [lawyerData, setLawyerData] = useState(null);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -27,21 +28,35 @@ const Dashboard = () => {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('userToken')}`, // Optional: add if using JWT
+            'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
           },
-          credentials: 'include', // Required if session cookie is used
+          credentials: 'include',
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch lawyer data');
-        }
+        if (!response.ok) throw new Error('Failed to fetch lawyer data');
 
         const result = await response.json();
 
         if (result.success) {
-          setLawyerData(result.user); // ✅ updated to match backend response
+          setLawyerData(result.user);
           const storedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
           setProfileImage(storedImage || 'https://via.placeholder.com/40');
+
+          const paymentRes = await fetch('/api/payments', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+            },
+            credentials: 'include',
+          });
+
+          if (paymentRes.ok) {
+            const paymentData = await paymentRes.json();
+            if (paymentData.status === 'success') {
+              setPayments(paymentData.payments);
+            }
+          }
         } else {
           setError('Failed to load user data.');
         }
@@ -59,6 +74,37 @@ const Dashboard = () => {
     navigate('/profile');
   };
 
+  const createPayment = async (newPayment) => {
+  try {
+    const res = await fetch('/api/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+      },
+      credentials: 'include',
+      body: JSON.stringify(newPayment),
+    });
+
+    const result = await res.json();
+
+    if (res.ok && result.message) {
+      const addedPayment = {
+        paymentdate: newPayment.paymentdate || new Date().toISOString().split('T')[0],
+        casename: newPayment.casename,
+        purpose: newPayment.purpose,
+        balance: newPayment.balance,
+        mode: newPayment.mode
+      };
+
+      setPayments(prev => [...prev, addedPayment]);
+    }
+  } catch (error) {
+    console.error('Error creating payment:', error);
+  }
+};
+
+
   const renderContent = () => {
     switch (activeView) {
       case 'cases':
@@ -68,7 +114,7 @@ const Dashboard = () => {
       case 'documents':
         return <DocumentManagement />;
       case 'billing':
-        return <Billing />;
+        return <Billing payments={payments} onCreatePayment={createPayment} />;
       case 'appeals':
         return <Appeals />;
       default:
@@ -90,7 +136,6 @@ const Dashboard = () => {
 
   return (
     <div style={{ minHeight: '100vh', width: '100vw', overflow: 'hidden', background: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <div className="bg-white border-bottom p-3" style={{ flex: '0 0 auto' }}>
         <div className="d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center gap-3">
@@ -105,7 +150,7 @@ const Dashboard = () => {
                 className="border"
               />
               <div>
-                <h6 className="mb-0">{lawyerData?.username}</h6> {/* ✅ updated */}
+                <h6 className="mb-0">{lawyerData?.username}</h6>
                 <small className="text-muted">{lawyerData?.specialization}</small>
               </div>
             </div>
@@ -123,13 +168,10 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div style={{ flex: '1 1 0', display: 'flex', width: '100%', height: '100%', minHeight: 0 }}>
-        {/* Sidebar */}
         <div className="border-end bg-white" style={{ width: '250px', height: '100%', minHeight: 0, flex: '0 0 250px' }}>
           <SidebarNav activeView={activeView} onViewChange={setActiveView} />
         </div>
-        {/* Content Area */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {renderContent()}
         </div>
