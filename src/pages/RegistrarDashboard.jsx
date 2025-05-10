@@ -146,16 +146,9 @@ const RegistrarDashboard = () => {
   }, []);
 
   useEffect(() => {
-    // On mount or route change, load registered court from localStorage
-    const savedCourt = localStorage.getItem('registeredCourt');
-    if (savedCourt) {
-      const court = JSON.parse(savedCourt);
-      setCourts([court]);
-      setSelectedCourt(court);
-    } else {
-      setCourts([]);
-      setSelectedCourt(null);
-    }
+    // Always show registration form on mount
+    setCourts([]);
+    setSelectedCourt(null);
   }, [location.pathname]);
 
   const handleProfileImageUpload = (event) => {
@@ -164,7 +157,6 @@ const RegistrarDashboard = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfileImage(reader.result);
-        localStorage.setItem(PROFILE_IMAGE_KEY, reader.result);
       };
       reader.readAsDataURL(file);
     }
@@ -189,7 +181,8 @@ const RegistrarDashboard = () => {
     setLoading(true);
     setTimeout(() => {
       if (editingCourt) {
-        setCourts(courts.map(c => c.id === editingCourt.id ? { ...editingCourt, ...courtForm } : c));
+        const updatedCourt = { ...editingCourt, ...courtForm };
+        setCourts(courts.map(c => c.id === editingCourt.id ? updatedCourt : c));
         showToast('Court updated!');
       } else {
         const newCourt = {
@@ -223,7 +216,6 @@ const RegistrarDashboard = () => {
     showToast('Court deleted!', 'danger');
     setSelectedCourt(null);
     setActiveTab('dashboard');
-    localStorage.removeItem('registeredCourt');
   };
 
   // COURT SELECTION
@@ -382,7 +374,6 @@ const RegistrarDashboard = () => {
 
   // Profile handlers
   const handleProfileSave = () => {
-    localStorage.setItem('registrarProfile', JSON.stringify(profileData));
     setIsEditingProfile(false);
     showToast('Profile updated!');
   };
@@ -390,15 +381,14 @@ const RegistrarDashboard = () => {
 
   // Logout handler
   const handleLogout = () => {
-    localStorage.clear();
+    setCourts([]);
+    setSelectedCourt(null);
+    setActiveTab('dashboard');
     window.location.href = '/login';
   };
 
   // Helper to get CourtRegistrar info from localStorage (from signup)
   const getCourtRegistrarInfo = () => {
-    const saved = localStorage.getItem('CourtRegistrarProfile');
-    if (saved) return JSON.parse(saved);
-    // fallback
     return { name: '', email: '', phone: '', cnic: '', dob: '' };
   };
   const [courtRegistrarInfo] = useState(getCourtRegistrarInfo());
