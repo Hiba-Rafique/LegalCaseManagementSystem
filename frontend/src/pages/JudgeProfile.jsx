@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Button, Image } from 'react-bootstrap';
-import { Mail, Phone, MapPin, Briefcase, Award, Upload } from 'lucide-react';
+import { Mail, Phone, MapPin, Briefcase, Award, Upload, User } from 'lucide-react';
 
-const PROFILE_IMAGE_KEY = 'lawyerProfileImage';
+const PROFILE_IMAGE_KEY = 'judgeProfileImage';
 
-const Profile = () => {
+const JudgeProfile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const fileInputRef = useRef(null);
@@ -14,12 +14,13 @@ const Profile = () => {
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
+    name: '',
     email: '',
     phone: '',
     specialization: '',
     cnic: '',
     dob: '',
-    barLicense: '',
+    position: '',
     experience: '',
   });
 
@@ -29,7 +30,7 @@ const Profile = () => {
 
     const fetchProfile = async () => {
       try {
-        const res = await fetch('/api/lawyerprofile', {
+        const res = await fetch('/api/judge/profile', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -41,30 +42,31 @@ const Profile = () => {
         if (!res.ok || !result.success) throw new Error(result.message || 'Failed to load profile');
 
         const data = result.data;
-
         setProfileData({
           firstName: data.firstName || '',
           lastName: data.lastName || '',
+          name: data.name || '',
           email: data.email || '',
           phone: data.phone || '',
           specialization: data.specialization || '',
           cnic: data.cnic || '',
           dob: data.dob || '',
-          barLicense: data.barLicense || '',
+          position: data.position || '',
           experience: data.experience || '',
         });
       } catch (err) {
         setError(null);
         setProfileData({
           firstName: 'Mock',
-          lastName: 'Lawyer',
-          email: 'mocklawyer@email.com',
+          lastName: 'Judge',
+          name: 'Hon. Mock Judge',
+          email: 'mockjudge@email.com',
           phone: '123-456-7890',
-          specialization: 'Civil Law',
+          specialization: 'Criminal Law',
           cnic: '12345-6789012-3',
-          dob: '1990-01-01',
-          barLicense: 'BAR-123456',
-          experience: '5',
+          dob: '1970-01-01',
+          position: 'Senior Judge',
+          experience: '15',
         });
         setProfileImage('https://via.placeholder.com/150');
         setLoading(false);
@@ -80,7 +82,7 @@ const Profile = () => {
 
   const handleSave = async () => {
     try {
-      const res = await fetch('/api/lawyerprofile', {
+      const res = await fetch('/api/judge/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -181,7 +183,7 @@ const Profile = () => {
                   textFillColor: 'transparent',
                   fontSize: '1.3rem',
                 }}>
-                  {profileData.firstName} {profileData.lastName}
+                  {profileData.name || `${profileData.firstName} ${profileData.lastName}`}
                 </h4>
                 <p className="text-muted mb-2" style={{ fontSize: '0.97rem' }}>{profileData.specialization}</p>
                 <div className="d-flex justify-content-center gap-2 mb-2">
@@ -216,6 +218,7 @@ const Profile = () => {
                 <div className="text-start">
                   <p className="mb-2">
                     <MapPin size={14} className="me-2" style={{ color: '#1ec6b6' }} />
+                    Position: {profileData.position}
                   </p>
                   <p className="mb-2">
                     <Briefcase size={14} className="me-2" style={{ color: '#1ec6b6' }} />
@@ -223,7 +226,7 @@ const Profile = () => {
                   </p>
                   <p className="mb-0">
                     <Award size={14} className="me-2" style={{ color: '#1ec6b6' }} />
-                    Bar License: {profileData.barLicense}
+                    Specialization: {profileData.specialization}
                   </p>
                 </div>
               </Card.Body>
@@ -290,6 +293,25 @@ const Profile = () => {
                           disabled={!isEditing}
                           onChange={(e) =>
                             setProfileData({ ...profileData, lastName: e.target.value })
+                          }
+                          style={{ 
+                            borderRadius: '0.75rem',
+                            padding: '0.5rem 0.75rem',
+                            border: '1px solid rgba(30,198,182,0.2)',
+                            fontSize: '0.97rem'
+                          }}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group>
+                        <Form.Label className="fw-bold" style={{ fontSize: '0.97rem' }}>Full Name</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={profileData.name}
+                          disabled={!isEditing}
+                          onChange={(e) =>
+                            setProfileData({ ...profileData, name: e.target.value })
                           }
                           style={{ 
                             borderRadius: '0.75rem',
@@ -397,6 +419,25 @@ const Profile = () => {
                     </Col>
                     <Col md={6}>
                       <Form.Group>
+                        <Form.Label className="fw-bold" style={{ fontSize: '0.97rem' }}>Position</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={profileData.position}
+                          disabled={!isEditing}
+                          onChange={(e) =>
+                            setProfileData({ ...profileData, position: e.target.value })
+                          }
+                          style={{ 
+                            borderRadius: '0.75rem',
+                            padding: '0.5rem 0.75rem',
+                            border: '1px solid rgba(30,198,182,0.2)',
+                            fontSize: '0.97rem'
+                          }}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group>
                         <Form.Label className="fw-bold" style={{ fontSize: '0.97rem' }}>Years of Experience</Form.Label>
                         <Form.Control
                           type="number"
@@ -425,4 +466,4 @@ const Profile = () => {
   );
 };
 
-export default Profile;
+export default JudgeProfile; 

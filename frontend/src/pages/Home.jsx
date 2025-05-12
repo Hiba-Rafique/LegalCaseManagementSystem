@@ -59,7 +59,7 @@ const Home = () => {
           <Container fluid>
           <Row className="align-items-center">
             <Col md={6} className="mb-4 mb-md-0 text-center text-md-start">
-              <h1 className="display-4 fw-bold mb-3 text-primary">Simplify Your Case Management</h1>
+              <h1 className="display-4 fw-bold mb-3 hero-gradient-text">Simplify Your Case Management</h1>
               <p className="lead mb-4">
                 LegalEase offers a modern, intuitive platform designed for legal professionals. Streamline workflows, manage clients, and access documents securely—anytime, anywhere.
               </p>
@@ -169,15 +169,139 @@ const Home = () => {
       {/* Basic CSS for hover effect (can be moved to a CSS file) */}
       <style>{`
         .hover-lift:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 .75rem 1.5rem rgba(0,0,0,.1)!important;
-          transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+          transform: translateY(-7px) scale(1.03);
+          box-shadow: 0 1.25rem 2.5rem rgba(30,198,182,0.13)!important;
+          transition: transform 0.22s cubic-bezier(.4,2,.6,1), box-shadow 0.22s cubic-bezier(.4,2,.6,1);
         }
         .hero-section {
-          background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+          background: linear-gradient(120deg, #e9ecef 0%, #f8f9fa 100%);
+        }
+        .hero-section .display-4 {
+          font-size: 2.8rem;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+        }
+        .hero-section .btn-lg {
+          border-radius: 2rem;
+          font-weight: 600;
+          box-shadow: 0 2px 12px rgba(30,198,182,0.08);
+        }
+        .hero-section .btn-lg,
+        .features-section .btn-outline-primary,
+        .cta-section .btn-lg {
+          background: #1ec6b6;
+          border-color: #1ec6b6;
+          color: #fff;
+        }
+        .hero-section .btn-lg:hover,
+        .features-section .btn-outline-primary:hover,
+        .cta-section .btn-lg:hover {
+          background: #159e8c;
+          border-color: #159e8c;
+          color: #fff;
+        }
+        .features-section {
+          background: linear-gradient(120deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+        .features-section .card {
+          border-radius: 1.5rem;
+          box-shadow: 0 2px 16px rgba(34,48,74,0.07);
+          transition: box-shadow 0.18s, transform 0.18s;
+        }
+        .features-section .card:hover {
+          box-shadow: 0 8px 32px rgba(30,198,182,0.13);
+          transform: translateY(-5px) scale(1.02);
+        }
+        .features-section svg {
+          font-size: 54px;
+          color: #1ec6b6 !important;
+          filter: drop-shadow(0 2px 8px rgba(30,198,182,0.10));
+        }
+        .features-section .btn-outline-primary {
+          background: #1ec6b6;
+          border-color: #1ec6b6;
+          color: #fff;
+        }
+        .features-section .btn-outline-primary:hover {
+          background: #159e8c;
+          border-color: #159e8c;
+          color: #fff;
         }
         .cta-section {
-           background: linear-gradient(to right, #0d6efd, #0b5ed7);
+           background: linear-gradient(90deg, #1ec6b6 0%, #0d6efd 100%);
+        }
+        .cta-section .btn-lg {
+          border-radius: 2rem;
+          font-weight: 700;
+          box-shadow: 0 2px 12px rgba(13,110,253,0.10);
+          position: relative;
+          overflow: hidden;
+        }
+        .cta-section .btn-lg::after {
+          content: '';
+          display: block;
+          position: absolute;
+          left: 50%;
+          bottom: 0;
+          width: 0;
+          height: 3px;
+          background: #1ec6b6;
+          transition: width 0.3s, left 0.3s;
+        }
+        .cta-section .btn-lg:hover::after {
+          width: 80%;
+          left: 10%;
+        }
+        .cta-section .btn-lg:hover {
+          background: #1ec6b6;
+          color: #fff;
+        }
+        .navbar {
+          background: linear-gradient(90deg, #22304a 0%, #1ec6b6 100%)!important;
+          box-shadow: 0 2px 12px rgba(34,48,74,0.10)!important;
+        }
+        .navbar-brand {
+          border-radius: 12px;
+          padding: 4px 16px;
+          background: rgba(255,255,255,0.07);
+        }
+        .navbar .btn {
+          border-radius: 2rem;
+          font-weight: 600;
+          min-width: 100px;
+          transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+        }
+        .navbar .btn-outline-light:hover {
+          background: #fff;
+          color: #1ec6b6;
+          box-shadow: 0 2px 8px rgba(30,198,182,0.13);
+        }
+        .navbar .btn-primary, .navbar .btn-primary:focus {
+          background: #1ec6b6;
+          border-color: #1ec6b6;
+        }
+        .navbar .btn-primary:hover {
+          background: #159e8c;
+          border-color: #159e8c;
+        }
+        .footer {
+          border-top: 2px solid #e9ecef;
+          box-shadow: 0 -2px 12px rgba(34,48,74,0.04);
+        }
+        .footer a {
+          color: #b0c4d6;
+          transition: color 0.18s;
+        }
+        .footer a:hover {
+          color: #1ec6b6;
+          text-decoration: underline;
+        }
+        .hero-gradient-text {
+          background: linear-gradient(90deg, #22304a 0%, #1ec6b6 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          text-fill-color: transparent;
         }
       `}</style>
     </div>

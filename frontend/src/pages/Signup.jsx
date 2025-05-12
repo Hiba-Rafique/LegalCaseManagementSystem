@@ -74,17 +74,17 @@ const Signup = () => {
     for (const field of steps[step].fields) {
       const value = form[field.name];
       if (field.required && (!value || value.trim() === '')) {
-        setError('${field.label} is required.');
+        setError(`${field.label} is required.`);
         return false;
-    }
+      }
       if (field.name === 'email' && value && !isEmailValid(value)) {
-      setError('Please enter a valid email address.');
+        setError('Please enter a valid email address.');
         return false;
-    }
+      }
       if (field.name === 'password' && value && !isPasswordStrong(value)) {
-      setError('Password must be at least 8 characters long.');
+        setError('Password must be at least 8 characters long.');
         return false;
-    }
+      }
       if (field.name === 'firstname' && value && value.trim().length < 2) {
         setError('First name must be at least 2 characters.');
         return false;
@@ -92,7 +92,7 @@ const Signup = () => {
       if (field.name === 'lastname' && value && value.trim().length < 2) {
         setError('Last name must be at least 2 characters.');
         return false;
-    }
+      }
     }
     return true;
   };
@@ -124,8 +124,12 @@ const Signup = () => {
         body: JSON.stringify(form),
       });
       const data = await response.json();
+
       if (response.ok) {
-        // Save CourtRegistrar info to localStorage for dashboard
+        // Store user role in localStorage
+        localStorage.setItem('userRole', form.role);
+        localStorage.setItem('email', form.email);
+
         if (form.role === 'CourtRegistrar') {
           localStorage.setItem('CourtRegistrarProfile', JSON.stringify({
             name: form.firstname + ' ' + form.lastname,
@@ -134,42 +138,136 @@ const Signup = () => {
             cnic: form.cnic,
             dob: form.dob
           }));
+          navigate('/CompleteProfile', { state: { role: form.role } });
+        } else if (form.role === 'Admin') {
+          navigate('/CompleteProfile', { state: { role: form.role } });
+        } else {
+          navigate('/CompleteProfile', { state: { role: form.role } });
         }
-        // Navigate to complete profile after signup, passing role in state
-        navigate('/CompleteProfile', { state: { role: form.role } });
       } else {
         setError(data.message || 'Signup failed. Please try again later.');
+        // Fallback to the dashboard page even if signup fails (mock behavior)
+        localStorage.setItem('userRole', form.role);
+        localStorage.setItem('email', form.email);
+
+        if (form.role === 'CourtRegistrar') {
+          localStorage.setItem('CourtRegistrarProfile', JSON.stringify({
+            name: form.firstname + ' ' + form.lastname,
+            email: form.email,
+            phone: form.phoneno,
+            cnic: form.cnic,
+            dob: form.dob
+          }));
+          navigate('/CompleteProfile', { state: { role: form.role } });
+        } else if (form.role === 'Admin') {
+          navigate('/CompleteProfile', { state: { role: form.role } });
+        } else {
+          navigate('/CompleteProfile', { state: { role: form.role } });
+        }
       }
     } catch (apiError) {
-      // If API call fails, fallback to mock success for development
-      navigate('/CompleteProfile', { state: { role: form.role } });
-      // Optionally, you can show a warning: setError('Backend not available, using mock signup.');
+      // Handle API errors, fallback to the dashboard page
+      localStorage.setItem('userRole', form.role);
+      localStorage.setItem('email', form.email);
+
+      if (form.role === 'CourtRegistrar') {
+        localStorage.setItem('CourtRegistrarProfile', JSON.stringify({
+          name: form.firstname + ' ' + form.lastname,
+          email: form.email,
+          phone: form.phoneno,
+          cnic: form.cnic,
+          dob: form.dob
+        }));
+        navigate('/CompleteProfile', { state: { role: form.role } });
+      } else if (form.role === 'Admin') {
+        navigate('/CompleteProfile', { state: { role: form.role } });
+      } else {
+        setError('Backend not available, using mock signup.');
+        navigate('/CompleteProfile', { state: { role: form.role } });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="signup-bg" style={{ minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
-      <div className="signup-form-card" style={{ maxWidth: 420, width: '100%', padding: '2.2em 1.2em 1.5em 1.2em', margin: '2em 0' }}>
-        <img src={legalLoginImage} alt="LegalEase Logo" className="signup-logo" />
-        <h2>Sign Up for LegalEase</h2>
-        <p className="text-muted">Create your account to manage cases, clients, and more.</p>
-        <div className="mb-3 w-100 d-flex justify-content-center align-items-center gap-2">
+    <div style={{
+      minHeight: '100vh',
+      width: '100vw',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'auto',
+      position: 'relative',
+    }}>
+      {/* Blurred background image with overlay */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 0,
+        background: `url(${legalSignupImage}) center center/cover no-repeat`,
+        filter: 'blur(4px) brightness(0.8)',
+      }} />
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 1,
+        background: 'linear-gradient(120deg, rgba(34,48,74,0.45) 0%, rgba(30,198,182,0.18) 100%)',
+      }} />
+      {/* Signup Card */}
+      <div className="signup-form-card" style={{
+        maxWidth: 370,
+        width: '100%',
+        padding: '1.2em 0.8em 1em 0.8em',
+        margin: '2em 0',
+        boxShadow: '0 8px 32px 0 rgba(31,38,135,0.18)',
+        borderRadius: '1.5rem',
+        background: 'white',
+        border: '1px solid rgba(255,255,255,0.18)',
+        zIndex: 2,
+        position: 'relative',
+      }}>
+        <h2 className="gradient-text" style={{
+          background: 'linear-gradient(90deg, #22304a 0%, #1ec6b6 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          textFillColor: 'transparent',
+          marginBottom: '0.5rem'
+        }}>Sign Up for LegalEase</h2>
+        <p className="text-muted mb-4">Create your account to manage cases, clients, and more.</p>
+        <div className="mb-4 w-100 d-flex justify-content-center align-items-center gap-2">
           {steps.map((s, idx) => (
-            <div key={s.label} style={{width: 18, height: 18, borderRadius: '50%', background: idx === step ? '#2563eb' : '#e0e7ef', border: '2px solid #2563eb', display: 'inline-block'}}></div>
+            <div 
+              key={s.label} 
+              style={{
+                width: 18, 
+                height: 18, 
+                borderRadius: '50%', 
+                background: idx === step ? '#1ec6b6' : '#e0e7ef', 
+                border: '2px solid #1ec6b6',
+                display: 'inline-block',
+                transition: 'all 0.3s ease'
+              }}
+            />
           ))}
-  </div>
-        <h5 className="mb-3">{steps[step].label}</h5>
-      {error && (
-        <Alert variant="danger" onClose={() => setError(null)} dismissible>
-          {error}
-        </Alert>
-      )}
-        <Form onSubmit={step === steps.length - 1 ? handleSubmit : handleNext} style={{width: '100%'}}>
+        </div>
+        <h5 className="mb-4 fw-bold" style={{ color: '#22304a' }}>{steps[step].label}</h5>
+        {error && (
+          <Alert variant="danger" onClose={() => setError(null)} dismissible style={{ borderRadius: '0.75rem' }}>
+            {error}
+          </Alert>
+        )}
+        <Form onSubmit={step === steps.length - 1 ? handleSubmit : handleNext} style={{ width: '100%' }}>
           {steps[step].fields.map(field => (
-            <Form.Group className="mb-3" key={field.name}>
-              <Form.Label>{field.label} {field.required && <span style={{color: 'red'}}>*</span>}</Form.Label>
+            <Form.Group className="mb-4" key={field.name}>
+              <Form.Label className="fw-bold">{field.label} {field.required && <span style={{ color: '#1ec6b6' }}>*</span>}</Form.Label>
               {field.type === 'select' ? (
                 <Form.Select
                   name={field.name}
@@ -177,6 +275,11 @@ const Signup = () => {
                   onChange={handleChange}
                   required={field.required}
                   aria-required={field.required}
+                  style={{ 
+                    borderRadius: '0.75rem',
+                    padding: '0.75rem 1rem',
+                    border: '1px solid rgba(30,198,182,0.2)'
+                  }}
                 >
                   <option value="">Select {field.label}</option>
                   {field.options && field.options.map(opt => (
@@ -185,7 +288,7 @@ const Signup = () => {
                 </Form.Select>
               ) : field.type === 'password' ? (
                 <div style={{ position: 'relative' }}>
-          <Form.Control
+                  <Form.Control
                     type={showPassword ? 'text' : 'password'}
                     placeholder={field.placeholder}
                     name={field.name}
@@ -193,20 +296,23 @@ const Signup = () => {
                     onChange={handleChange}
                     required={field.required}
                     aria-required={field.required}
-                    style={{ paddingRight: 40 }}
-          />
-                  <span
-                    onClick={() => setShowPassword((v) => !v)}
-                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#888' }}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    style={{ 
+                      borderRadius: '0.75rem',
+                      padding: '0.75rem 1rem',
+                      border: '1px solid rgba(30,198,182,0.2)'
+                    }}
+                  />
+                  <Button
+                    variant="link"
+                    className="position-absolute end-0 top-50 translate-middle-y"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ color: '#1ec6b6' }}
                   >
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </span>
+                  </Button>
                 </div>
               ) : (
-          <Form.Control
+                <Form.Control
                   type={field.type}
                   placeholder={field.placeholder}
                   name={field.name}
@@ -214,32 +320,116 @@ const Signup = () => {
                   onChange={handleChange}
                   required={field.required}
                   aria-required={field.required}
-          />
+                  style={{ 
+                    borderRadius: '0.75rem',
+                    padding: '0.75rem 1rem',
+                    border: '1px solid rgba(30,198,182,0.2)'
+                  }}
+                />
               )}
-        </Form.Group>
+            </Form.Group>
           ))}
-          <div className="d-flex justify-content-between align-items-center mt-3">
+          <div className="d-flex gap-3">
             {step > 0 && (
-              <Button variant="secondary" onClick={handleBack} disabled={isLoading} type="button">Back</Button>
+              <Button
+                variant="outline-secondary"
+                onClick={handleBack}
+                className="flex-grow-1"
+                style={{
+                  borderRadius: '0.75rem',
+                  padding: '0.75rem',
+                  fontWeight: '600',
+                  borderColor: '#1ec6b6',
+                  color: '#1ec6b6'
+                }}
+              >
+                Back
+              </Button>
             )}
-            {step < steps.length - 1 ? (
-              <Button variant="primary" type="submit" className="ms-auto" disabled={isLoading}>Next</Button>
-            ) : (
-              <Button variant="primary" type="submit" className="ms-auto" disabled={isLoading}>
-          {isLoading ? (
-                  <><Spinner animation="border" size="sm" className="me-2" /> Signing Up...</>
-          ) : (
-            'Sign Up'
-          )}
-        </Button>
-            )}
+            <Button
+              type="submit"
+              className="flex-grow-1"
+              disabled={isLoading}
+              style={{
+                background: 'linear-gradient(90deg, #22304a 0%, #1ec6b6 100%)',
+                border: 'none',
+                borderRadius: '0.75rem',
+                padding: '0.75rem',
+                fontWeight: '600',
+                boxShadow: '0 4px 12px rgba(30,198,182,0.15)'
+              }}
+            >
+              {isLoading ? (
+                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" />
+              ) : step === steps.length - 1 ? (
+                'Sign Up'
+              ) : (
+                'Next'
+              )}
+            </Button>
           </div>
-      </Form>
-      <p className="mt-3 text-center">
-        Already have an account? <Link to="/login">Log In</Link>
-      </p>
+        </Form>
+        <div className="text-center mt-4">
+          <p className="mb-0">
+            Already have an account?{' '}
+            <Link to="/login" style={{ color: '#1ec6b6', textDecoration: 'none', fontWeight: '600' }}>
+              Log in
+            </Link>
+          </p>
+        </div>
+      </div>
+      <style>{`
+        .btn-primary, .btn-outline-primary, .btn-outline-secondary, .custom-radio input[type='radio']:checked + label {
+          background: #1ec6b6 !important;
+          border-color: #1ec6b6 !important;
+          color: #fff !important;
+        }
+        .btn-primary:hover, .btn-outline-primary:hover, .btn-outline-secondary:hover {
+          background: #159e8c !important;
+          border-color: #159e8c !important;
+          color: #fff !important;
+        }
+        .form-check-input:checked {
+          background-color: #1ec6b6 !important;
+          border-color: #1ec6b6 !important;
+        }
+        .signup-form-card h2.gradient-text {
+          font-size: 2rem;
+        }
+        .signup-form-card p,
+        .signup-form-card label,
+        .signup-form-card .form-label,
+        .signup-form-card .form-control,
+        .signup-form-card .form-check-label,
+        .signup-form-card .btn,
+        .signup-form-card .alert,
+        .signup-form-card .small {
+          font-size: 0.97rem;
+        }
+        .signup-form-card .form-control {
+          font-size: 0.97rem;
+          padding: 0.5rem 0.75rem;
+        }
+        .signup-form-card .form-group,
+        .signup-form-card .mb-4,
+        .signup-form-card .mb-3,
+        .signup-form-card .form-label,
+        .signup-form-card .form-control,
+        .signup-form-card .btn,
+        .signup-form-card .alert,
+        .signup-form-card .small {
+          margin-bottom: 0.65rem !important;
+        }
+        .signup-form-card .form-group:last-child,
+        .signup-form-card .mb-4:last-child,
+        .signup-form-card .mb-3:last-child {
+          margin-bottom: 0 !important;
+        }
+        .signup-form-card {
+          padding-top: 1.2em !important;
+        }
+      `}</style>
     </div>
-  </div>
   );
 };
 

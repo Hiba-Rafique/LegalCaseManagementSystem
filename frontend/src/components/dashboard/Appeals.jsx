@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Table, Button, InputGroup, Form, Row, Col, Badge, Modal } from 'react-bootstrap';
+import { Card, Table, InputGroup, Form, Row, Col, Badge, Button, Modal } from 'react-bootstrap';
 import { Search, PlusCircle } from 'lucide-react';
 
 const initialAppeals = [
-  { date: '05/10/2025', caseName: 'Innovate LLC Patent Dispute', type: 'Civil', status: 'Open', court: 'Appellate Court', result: 'N/A' },
-  { date: '05/02/2025', caseName: 'Smith v. Jones Construction', type: 'Criminal', status: 'Pending', court: 'Supreme Court', result: 'N/A' },
-  { date: '04/28/2025', caseName: 'Acme Corp v. Beta Innovations', type: 'Civil', status: 'Closed', court: 'Appellate Court', result: 'Granted' },
-  { date: '04/20/2025', caseName: 'Chen Family Trust Admin', type: 'Probate', status: 'Closed', court: 'Probate Appeals', result: 'Denied' },
+  { date: '05/10/2025', caseName: 'Innovate LLC Patent Dispute', type: 'Civil', status: 'Open', court: 'Appellate Court', result: 'N/A', resultDate: '' },
+  { date: '05/02/2025', caseName: 'Smith v. Jones Construction', type: 'Criminal', status: 'Pending', court: 'Supreme Court', result: 'N/A', resultDate: '' },
+  { date: '04/28/2025', caseName: 'Acme Corp v. Beta Innovations', type: 'Civil', status: 'Closed', court: 'Appellate Court', result: 'Granted', resultDate: '' },
+  { date: '04/20/2025', caseName: 'Chen Family Trust Admin', type: 'Probate', status: 'Closed', court: 'Probate Appeals', result: 'Denied', resultDate: '' },
 ];
 
 const statusVariants = {
@@ -20,15 +20,12 @@ const Appeals = () => {
   const [status, setStatus] = useState('All');
   const [appeals, setAppeals] = useState(initialAppeals);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    date: '',
+  const [formData, setFormData] = useState({
     caseName: '',
-    type: 'Civil',
-    status: 'Open',
+    type: '',
     court: '',
-    result: '',
+    description: ''
   });
-  const [formError, setFormError] = useState('');
 
   const filteredAppeals = useMemo(() => {
     return appeals.filter(a => {
@@ -40,37 +37,37 @@ const Appeals = () => {
     });
   }, [search, status, appeals]);
 
-  const handleShowModal = () => {
-    setForm({ date: '', caseName: '', type: 'Civil', status: 'Open', court: '', result: '' });
-    setFormError('');
-    setShowModal(true);
-  };
-  const handleCloseModal = () => setShowModal(false);
-  const handleFormChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-  const handleFormSubmit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.date || !form.caseName || !form.type || !form.status || !form.court) {
-      setFormError('Please fill in all required fields.');
-      return;
-    }
-    setAppeals([{ ...form }, ...appeals]);
+    const newAppeal = {
+      date: new Date().toLocaleDateString(),
+      caseName: formData.caseName,
+      type: formData.type,
+      status: 'Open',
+      court: formData.court,
+      result: 'N/A',
+      resultDate: ''
+    };
+    setAppeals([newAppeal, ...appeals]);
     setShowModal(false);
+    setFormData({ caseName: '', type: '', court: '', description: '' });
   };
 
   return (
     <Row className="justify-content-center align-items-start py-4 px-2 px-md-4">
       <Col xs={12} md={11} lg={10} xl={9}>
-        <Card className="shadow-sm rounded-4">
+        <Card>
           <Card.Header className="bg-white border-bottom-0 pb-0">
             <div className="d-flex align-items-center gap-3 mb-2">
               <h4 className="mb-0 fw-bold"><span className="me-2" role="img" aria-label="appeals">⚖️</span>Appeals</h4>
-              <div className="ms-auto">
-                <Button variant="primary" className="d-flex align-items-center gap-2 rounded-pill px-4 py-2" style={{ fontWeight: 500, fontSize: '1.1rem' }} onClick={handleShowModal}>
-                  <PlusCircle size={20} /> File New Appeal
-                </Button>
-              </div>
+              <Button 
+                variant="primary" 
+                size="sm" 
+                className="d-flex align-items-center gap-2"
+                onClick={() => setShowModal(true)}
+              >
+                <PlusCircle size={16} /> File New Appeal
+              </Button>
             </div>
           </Card.Header>
           <Card.Body className="pt-0">
@@ -104,12 +101,13 @@ const Appeals = () => {
                     <th>Status</th>
                     <th>Court</th>
                     <th>Result</th>
+                    <th>Result Date</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAppeals.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center text-muted py-4">No appeals found.</td>
+                      <td colSpan={7} className="text-center text-muted py-4">No appeals found.</td>
                     </tr>
                   ) : (
                     filteredAppeals.map((a, idx) => (
@@ -124,6 +122,7 @@ const Appeals = () => {
                         </td>
                         <td>{a.court}</td>
                         <td>{a.result}</td>
+                        <td>{a.resultDate}</td>
                       </tr>
                     ))
                   )}
@@ -132,55 +131,67 @@ const Appeals = () => {
             </div>
           </Card.Body>
         </Card>
-        {/* Modal for New Appeal */}
-        <Modal show={showModal} onHide={handleCloseModal} centered>
-          <Modal.Header closeButton>
-            <Modal.Title>File New Appeal</Modal.Title>
-          </Modal.Header>
-          <Form onSubmit={handleFormSubmit}>
-            <Modal.Body>
-              {formError && <div className="alert alert-danger py-2">{formError}</div>}
-              <Form.Group className="mb-3">
-                <Form.Label>Date</Form.Label>
-                <Form.Control type="date" name="date" value={form.date} onChange={handleFormChange} required />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Case Name</Form.Label>
-                <Form.Control type="text" name="caseName" value={form.caseName} onChange={handleFormChange} required />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Type</Form.Label>
-                <Form.Select name="type" value={form.type} onChange={handleFormChange} required>
-                  <option value="Civil">Civil</option>
-                  <option value="Criminal">Criminal</option>
-                  <option value="Probate">Probate</option>
-                  <option value="Other">Other</option>
-                </Form.Select>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Status</Form.Label>
-                <Form.Select name="status" value={form.status} onChange={handleFormChange} required>
-                  <option value="Open">Open</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Closed">Closed</option>
-                </Form.Select>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Court</Form.Label>
-                <Form.Control type="text" name="court" value={form.court} onChange={handleFormChange} required />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Result</Form.Label>
-                <Form.Control type="text" name="result" value={form.result} onChange={handleFormChange} />
-              </Form.Group>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
-              <Button variant="primary" type="submit">Add Appeal</Button>
-            </Modal.Footer>
-          </Form>
-        </Modal>
       </Col>
+
+      {/* File New Appeal Modal */}
+      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>File New Appeal</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Case Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={formData.caseName}
+                onChange={e => setFormData({ ...formData, caseName: e.target.value })}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Type</Form.Label>
+              <Form.Select
+                value={formData.type}
+                onChange={e => setFormData({ ...formData, type: e.target.value })}
+                required
+              >
+                <option value="">Select type</option>
+                <option value="Civil">Civil</option>
+                <option value="Criminal">Criminal</option>
+                <option value="Probate">Probate</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Court</Form.Label>
+              <Form.Select
+                value={formData.court}
+                onChange={e => setFormData({ ...formData, court: e.target.value })}
+                required
+              >
+                <option value="">Select court</option>
+                <option value="Appellate Court">Appellate Court</option>
+                <option value="Supreme Court">Supreme Court</option>
+                <option value="Probate Appeals">Probate Appeals</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Description</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={formData.description}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                required
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button variant="primary" type="submit">File Appeal</Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
     </Row>
   );
 };

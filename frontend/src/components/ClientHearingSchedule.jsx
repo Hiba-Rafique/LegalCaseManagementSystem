@@ -1,17 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, ListGroup, Badge, Button, Modal, Form } from 'react-bootstrap';
-import { Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Card, Row, Col, ListGroup, Badge, Button, Modal } from 'react-bootstrap';
+import { Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import moment from 'moment';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './CalendarSummary.css';
 
-const EVENT_TYPES = [
-  { label: 'Court Date', value: 'Court Date' },
-  { label: 'Meeting', value: 'Meeting' },
-  { label: 'Deadline', value: 'Deadline' },
+const mockHearings = [
+  {
+    id: 1,
+    title: 'Court Hearing - State vs. John Doe',
+    date: moment().date(10),
+    time: '10:00 AM',
+    type: 'Court Date',
+    location: 'Metropolis Central Courthouse',
+    judge: 'Judge Judy',
+    description: 'Initial hearing for State vs. John Doe.'
+  },
+  {
+    id: 2,
+    title: 'Court Hearing - Smith v. Jones',
+    date: moment().date(11),
+    time: '2:30 PM',
+    type: 'Court Date',
+    location: 'Metropolis Central Courthouse',
+    judge: 'Judge Dredd',
+    description: 'Evidence presentation for Smith v. Jones.'
+  },
+  {
+    id: 3,
+    title: 'Court Hearing - In re Estate of Miller',
+    date: moment().date(10),
+    time: '11:00 AM',
+    type: 'Court Date',
+    location: 'Metropolis Probate Court',
+    judge: 'Judge Amy',
+    description: 'Final hearing for In re Estate of Miller.'
+  }
 ];
 
-const CalendarSummary = () => {
+const getEventBadgeVariant = (type) => {
+  switch (type) {
+    case 'Court Date': return 'danger';
+    case 'Meeting': return 'primary';
+    case 'Deadline': return 'warning';
+    default: return 'info';
+  }
+};
+
+function ClientHearingSchedule() {
   const [currentDate, setCurrentDate] = useState(moment());
   const [selectedDate, setSelectedDate] = useState(moment());
   const [events, setEvents] = useState([]);
@@ -19,76 +55,27 @@ const CalendarSummary = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   useEffect(() => {
-    const mockEvents = [
-      {
-        id: 1,
-        title: 'Court Hearing - Smith v. Jones',
-        date: moment().date(10),
-        time: '10:00 AM',
-        type: 'Court Date',
-        location: 'Courtroom 3B',
-        description: 'Initial hearing for Smith v. Jones case',
-        priority: 'high',
-        remarks: 'Bring all documents.'
-      },
-      {
-        id: 2,
-        title: 'Client Meeting - Sarah Chen',
-        date: moment().date(9),
-        time: '2:30 PM',
-        type: 'Meeting',
-        location: 'Office Conference Room',
-        description: 'Discuss case strategy',
-        priority: 'medium'
-      },
-      {
-        id: 3,
-        title: 'Document Filing Deadline',
-        date: moment().date(11),
-        time: '5:00 PM',
-        type: 'Deadline',
-        location: 'Online Portal',
-        description: 'Submit motion to dismiss',
-        priority: 'high'
-      }
-    ];
-    setEvents(mockEvents);
+    setEvents(mockHearings);
   }, []);
 
   const getDaysInMonth = () => {
     const daysInMonth = currentDate.daysInMonth();
     const firstDayOfMonth = moment(currentDate).startOf('month');
     const days = [];
-    
-    // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDayOfMonth.day(); i++) {
       days.push(null);
     }
-    
-    // Add days of the month
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(moment(currentDate).date(i));
     }
-    
-    // Add empty cells to complete the last week
     while (days.length % 7 !== 0) {
       days.push(null);
     }
-    
     return days;
   };
 
   const getEventsForDay = (day) => {
     return events.filter(event => event.date.isSame(day, 'day'));
-  };
-
-  const getEventBadgeVariant = (type) => {
-    switch (type) {
-      case 'Court Date': return 'danger';
-      case 'Meeting': return 'primary';
-      case 'Deadline': return 'warning';
-      default: return 'info';
-    }
   };
 
   const handlePrevMonth = () => {
@@ -140,7 +127,6 @@ const CalendarSummary = () => {
                   </Button>
                 </div>
               </div>
-
               <div className="calendar-grid">
                 <div className="calendar-header">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -154,7 +140,6 @@ const CalendarSummary = () => {
                     const isSelected = day && day.isSame(selectedDate, 'day');
                     const dayEvents = day ? getEventsForDay(day) : [];
                     const hasEvents = dayEvents.length > 0;
-
                     return (
                       <div
                         key={idx}
@@ -192,7 +177,6 @@ const CalendarSummary = () => {
             </Card.Body>
           </Card>
         </Col>
-
         {/* Events Panel - now wider */}
         <Col xs={12} md={5} lg={4} xl={4} xxl={3}>
           <Card className="shadow-sm border-0 rounded-4 h-100">
@@ -203,7 +187,7 @@ const CalendarSummary = () => {
               {selectedEvents.length === 0 ? (
                 <div className="text-center text-muted py-5">
                   <CalendarIcon size={48} className="mb-3 opacity-50" />
-                  <p className="mb-0">No events scheduled for this day</p>
+                  <p className="mb-0">No hearings scheduled for this day</p>
                 </div>
               ) : (
                 <ListGroup variant="flush" className="events-list">
@@ -217,9 +201,6 @@ const CalendarSummary = () => {
                         <Badge bg={getEventBadgeVariant(event.type)}>{event.type}</Badge>
                         <span className="fw-bold">{event.title}</span>
                       </div>
-                      {event.remarks && (
-                        <div className="text-muted mb-1" style={{ fontSize: '0.95em' }}><strong>Remarks:</strong> {event.remarks}</div>
-                      )}
                       <div className="d-flex align-items-center gap-2 mb-1">
                         <Clock size={16} className="text-primary" />
                         <span>{event.time}</span>
@@ -227,7 +208,9 @@ const CalendarSummary = () => {
                       <div className="d-flex align-items-center gap-2">
                         <MapPin size={16} className="text-primary" />
                         <span>{event.location}</span>
-                      </div>
+      </div>
+                      <div className="text-muted small mt-1">Judge: {event.judge}</div>
+                      <div className="text-muted small">{event.description}</div>
                     </ListGroup.Item>
                   ))}
                 </ListGroup>
@@ -236,7 +219,6 @@ const CalendarSummary = () => {
           </Card>
         </Col>
       </Row>
-
       {/* Event Details Modal */}
       <Modal
         show={showEventModal}
@@ -253,8 +235,8 @@ const CalendarSummary = () => {
                 </Badge>
                 <h5 className="mb-0">{selectedEvent.title}</h5>
               </Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
+        </Modal.Header>
+        <Modal.Body>
               <div className="d-flex align-items-center gap-2 mb-3">
                 <Clock size={20} className="text-primary" />
                 <span>{selectedEvent.time}</span>
@@ -263,22 +245,14 @@ const CalendarSummary = () => {
                 <MapPin size={20} className="text-primary" />
                 <span>{selectedEvent.location}</span>
               </div>
-              <p className="mb-0">{selectedEvent.description}</p>
-              {selectedEvent.remarks && (
-                <div className="mb-2"><strong>Remarks:</strong> {selectedEvent.remarks}</div>
-              )}
+              <div className="mb-2"><strong>Judge:</strong> {selectedEvent.judge}</div>
+              <div className="mb-2"><strong>Description:</strong> {selectedEvent.description}</div>
             </Modal.Body>
-            <Modal.Footer className="border-0">
-              <Button variant="secondary" onClick={() => setShowEventModal(false)}>
-                Close
-              </Button>
-              <Button variant="primary">Edit Event</Button>
-            </Modal.Footer>
-          </>
-        )}
+             </>
+           )}
       </Modal>
     </div>
   );
-};
+}
 
-export default CalendarSummary;
+export default ClientHearingSchedule;
