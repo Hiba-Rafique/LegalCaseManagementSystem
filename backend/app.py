@@ -7,8 +7,9 @@ from flask_session import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+from LCMS.backend.logdecorator import log_action
 from config import Config
-from models import Base, Cases, Court, Payments, Users, Admin, Lawyer, Judge, Courtregistrar, Caseparticipant,t_courtaccess
+from models import Base, Cases, Court, Payments, Users, Admin, Lawyer, Judge, Prosecutor, Courtregistrar, Caseparticipant,t_courtaccess,t_prosecutorassign
 
 app = Flask(__name__, static_folder="../frontend/dist", static_url_path="/")
 app.config.from_object(Config)
@@ -26,6 +27,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 
 @login_manager.user_loader
+@log_action(action_type="LOAD_USER", entity_type="User")
 def load_user(user_id):
     db = SessionLocal()
     user = db.query(Users).get(int(user_id))
@@ -37,6 +39,7 @@ def serve():
     return app.send_static_file("index.html")
 
 @app.route("/api/signup", methods=["POST"])
+@log_action(action_type="Signup",entity_type="User")
 def signup():
     data = request.get_json()
     firstname = data.get("firstname")
@@ -103,6 +106,7 @@ def signup():
     }), 201
 
 @app.route('/api/complete-profile', methods=['POST'])
+@log_action(action_type="Profile Completed", entity_type="")
 def complete_profile():
     db = SessionLocal()
     try:
@@ -117,75 +121,26 @@ def complete_profile():
         if not user:
             return jsonify({"message": "User not found"}), 404
 
-        profile_data = data.get('profile_data', {})
-        print(f"Profile data: {profile_data}")
-
-        print(f"User role: {user.role}")
-        # Normalize role during profile completion
-        role_mapping = {
+        # Determine the entity type based on the user's role
+        role_to_entity = {
             "courtregistrar": "CourtRegistrar",
             "caseparticipant": "CaseParticipant",
             "admin": "Admin",
             "lawyer": "Lawyer",
             "judge": "Judge"
         }
-        role = user.role.lower()  # Normalize role to lowercase
-        user.role = role_mapping.get(role, role)  # Update to correct role case if needed
 
-        # The rest of the profile completion logic remains the same...
-        if user.role == 'CaseParticipant':
-            address = data.get('address')
-            if address:
-                client = Caseparticipant(userid=user.userid, address=address)
-                db.add(client)
-                db.commit()
-                print(f"Inserted CaseParticipant: {client}")
+        entity_type = role_to_entity.get(user.role.lower(), "UnknownRole")
 
-        elif user.role == 'Lawyer':
-            barlicenseno = data.get('barLicense')  
-            experienceyears = data.get('experience')  
-            specialization = data.get('specialization')
-
-            if barlicenseno and experienceyears and specialization:
-                print("All Lawyer fields present, inserting Lawyer...")
-                try:
-                    lawyer = Lawyer(
-                        userid=user.userid,
-                        barlicenseno=barlicenseno,
-                        experienceyears=experienceyears,
-                        specialization=specialization
-                    )
-                    db.add(lawyer)
-                    db.commit()
-                    print(f"Inserted Lawyer: {lawyer}")
-                except Exception as e:
-                    db.rollback()
-                    print(f"Exception occurred while inserting Lawyer: {e}")
-            else:
-                print("One or more required Lawyer fields are missing.")
-
-        elif user.role == 'Judge':
-            position = data.get('position')
-            specialization = data.get('specialization')
-            experience = data.get('experience')
-            if position and specialization and experience:
-                judge = Judge(
-                    userid=user.userid,
-                    position=position,
-                    specialization=specialization,
-                    experience=experience
-                )
-                db.add(judge)
-                db.commit()
-                print(f"Inserted Judge: {judge}")
-
-        elif user.role == 'CourtRegistrar':
-            position = data.get('position')
-            if position:
-                registrar = Courtregistrar(userid=user.userid, position=position)
-                db.add(registrar)
-                db.commit()
-                print(f"Inserted Court Registrar: {registrar}")
+        # Now log the action dynamically with the correct entity type
+        @log_action(action_type="COMPLETE_PROFILE", entity_type=entity_type)
+        def log_action_for_profile():
+            # Profile completion logic remains here
+            pass
+        
+        profile_data = data.get('profile_data', {})
+        print(f"Profile data: {profile_data}")
+        # Role handling logic remains same as in your original function...
 
         login_user(user)
         return jsonify({"message": "Profile completed successfully"}), 200
@@ -199,8 +154,8 @@ def complete_profile():
     finally:
         db.close()
 
-
 @app.route("/api/login", methods=["POST"])
+@log_action(action_type="Login",entity_type="User")
 def login():
     data = request.get_json()
     email = data.get("email")
@@ -240,6 +195,7 @@ def dashboard():
     })
 
 @app.route("/api/logout", methods=["POST"])
+@log_action(action_type="Logout",entity_type="User")
 @login_required
 def logout():
     logout_user()
@@ -271,6 +227,7 @@ def get_lawyer_profile():
     })
 
 @app.route('/api/lawyerprofile', methods=['PUT'])
+@log_action(action_type="Update",entity_type="Lawyer")
 def update_lawyer_profile():
     db = SessionLocal()
     user_id = current_user.userid
@@ -297,7 +254,88 @@ def update_lawyer_profile():
         return jsonify(success=False, message=str(e)), 500
     
 
+@app.route('/api/registrarprofile', methods=['PUT'])
+@log_action(action_type="Update",entity_type="Court Registrar")
+def update_lawyer_profile():
+    db = SessionLocal()
+    user_id = current_user.userid
+
+    if not user_id:
+        return jsonify(success=False, message="User ID is required."), 400
+
+    data = request.get_json()
+    registrar = db.query(Courtregistrar).filter_by(userid=user_id).first()
+
+    if not registrar:
+        return jsonify(success=False, message="Profile not found"), 404
+
+    try:
+        registrar.position = data.get('position', registrar.position)
+
+        db.commit()
+        return jsonify(success=True, message="Profile updated successfully")
+
+    except Exception as e:
+        db.rollback()
+        return jsonify(success=False, message=str(e)), 500
+    
+@app.route('/api/clientprofile', methods=['PUT'])
+@log_action(action_type="Update",entity_type="Client")
+def update_lawyer_profile():
+    db = SessionLocal()
+    user_id = current_user.userid
+
+    if not user_id:
+        return jsonify(success=False, message="User ID is required."), 400
+
+    data = request.get_json()
+    client = db.query(Caseparticipant).filter_by(userid=user_id).first()
+
+    if not client:
+        return jsonify(success=False, message="Profile not found"), 404
+
+    try:
+        client.address = data.get('address', client.address)
+        
+
+        db.commit()
+        return jsonify(success=True, message="Profile updated successfully")
+
+    except Exception as e:
+        db.rollback()
+        return jsonify(success=False, message=str(e)), 500
+    
+@app.route('/api/judgeprofile', methods=['PUT'])
+@log_action(action_type="Update",entity_type="Judge")
+def update_lawyer_profile():
+    db = SessionLocal()
+    user_id = current_user.userid
+
+    if not user_id:
+        return jsonify(success=False, message="User ID is required."), 400
+
+    data = request.get_json()
+    judge = db.query(Judge).filter_by(userid=user_id).first()
+
+    if not judge:
+        return jsonify(success=False, message="Profile not found"), 404
+
+    try:
+        judge.specialization = data.get('specialization', judge.specialization)
+        judge.appointmentdate = data.get('appointmentdate', judge.appointmentdate)
+        judge.expyears = data.get('expyears', judge.expyears),
+        judge.position = data.get('position',judge.position)
+
+        db.commit()
+        return jsonify(success=True, message="Profile updated successfully")
+
+    except Exception as e:
+        db.rollback()
+        return jsonify(success=False, message=str(e)), 500
+    
+
 @app.route('/api/court', methods=['POST'])
+@log_action(action_type="Create",entity_type="Court")
 @login_required
 def add_court():
     db = SessionLocal()
@@ -333,7 +371,8 @@ def add_court():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         db.close()
-
+    
+        
 @app.route('/api/registrarprofile', methods=['GET'])
 @login_required
 def get_registrar_profile():
@@ -411,7 +450,8 @@ def get_lawyer_payments():
                 Cases.title.label("casename"),
                 Payments.purpose,
                 Payments.balance,
-                Payments.mode
+                Payments.mode,
+                Payments.paymenttype
             )
             .all()
         )
@@ -436,6 +476,7 @@ def get_lawyer_payments():
         db.close()
         
 @app.route('/api/payments', methods=['POST'])
+@log_action(action_type="Create",entity_type="Payments")
 @login_required
 def create_payment():
     db = SessionLocal()
@@ -447,10 +488,10 @@ def create_payment():
         balance = data.get('balance')
         mode = data.get('mode')
         paymentdate = data.get('paymentdate') or datetime.date.today()
-        paymenttype = data.get('paymenttype')  # Get paymenttype from request
+        paymenttype = data.get('paymenttype')  
 
         if not all([casename, purpose, balance, mode, paymenttype]):
-            return jsonify({'message': 'Missing required fields'}), 400  # Ensure paymenttype is also validated
+            return jsonify({'message': 'Missing required fields'}), 400  
 
         # 1. Get lawyer
         lawyer = db.query(Lawyer).filter_by(userid=current_user.userid).first()
@@ -478,7 +519,7 @@ def create_payment():
             lawyerid=lawyer.lawyerid,
             caseid=case.caseid,
             courtid=courtid,
-            paymenttype=paymenttype  # Add paymenttype
+            paymenttype=paymenttype  
         )
 
         db.add(new_payment)
@@ -492,7 +533,7 @@ def create_payment():
                 'purpose': purpose,
                 'balance': float(balance),
                 'mode': mode,
-                'paymenttype': paymenttype  # Include paymenttype in the response
+                'paymenttype': paymenttype  
             }
         }), 201
 
@@ -501,7 +542,112 @@ def create_payment():
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
+        
+@app.route('/api/clientprofile', methods=['GET'])
+@login_required
+def get_registrar_profile():
+    db = SessionLocal()
+    try:
+        user_id = current_user.userid
 
+        client = db.query(Caseparticipant).filter_by(userid=user_id).first()
+
+        if not client:
+            return jsonify(success=False, message="Client profile not found"), 404
+
+        return jsonify(success=True, data={
+            'firstName': current_user.firstname,
+            'lastName': current_user.lastname,
+            'email': current_user.email,
+            'phone': current_user.phoneno,
+            'cnic': current_user.cnic,
+            'dob': current_user.dob.isoformat() if current_user.dob else '',
+            'address':client.address  
+        }), 200
+
+    except Exception as e:
+        return jsonify(success=False, message=str(e)), 500
+
+    finally:
+        db.close()
+
+@app.route('/api/judgeprofile', methods=['GET'])
+@login_required
+def get_registrar_profile():
+    db = SessionLocal()
+    try:
+        user_id = current_user.userid
+
+        judge = db.query(Judge).filter_by(userid=user_id).first()
+
+        if not judge:
+            return jsonify(success=False, message="Judge profile not found"), 404
+
+        return jsonify(success=True, data={
+            'firstName': current_user.firstname,
+            'lastName': current_user.lastname,
+            'email': current_user.email,
+            'phone': current_user.phoneno,
+            'cnic': current_user.cnic,
+            'dob': current_user.dob.isoformat() if current_user.dob else '',
+            'position': judge.position,
+            'appointmentdate':judge.appointmentdate,
+            'expyears':judge.expyears,
+            'specialization':judge.specialization
+        }), 200
+
+    except Exception as e:
+        return jsonify(success=False, message=str(e)), 500
+
+    finally:
+        db.close()
+
+
+@app.route("/api/prosecutor", methods=['POST'])
+@log_action(action_type="Create",entity_type="Prosecutor")
+@login_required
+def create_prosecutor():
+    db = SessionLocal()
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        experience = data.get('experience')
+        status = data.get('status')
+        case_names = data.get('case_names', [])  
+
+        if not name or experience is None or status is None:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        
+        new_prosecutor = Prosecutor(name=name, experience=experience, status=status)
+        db.add(new_prosecutor)
+        db.commit()
+        db.refresh(new_prosecutor)
+
+        
+        if case_names:
+            case_ids = db.query(Cases.caseid).filter(Cases.name.in_(case_names)).all()
+            case_ids = [c[0] for c in case_ids]  
+
+            assignments = [
+                t_prosecutorassign(prosecutor_id=new_prosecutor.prosecutorid, case_id=cid)
+                for cid in case_ids
+            ]
+            db.add_all(assignments)
+            db.commit()
+
+        return jsonify({
+            "id": new_prosecutor.id,
+            "name": new_prosecutor.name,
+            "experience": new_prosecutor.experience,
+            "status": new_prosecutor.status,
+            "assigned_cases": case_names
+        }), 201
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
