@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Form, ListGroup, Nav, Badge, Tab, Toast, Spinner, InputGroup } from 'react-bootstrap';
-import { Plus, Building2, Users, Gavel, Briefcase, DollarSign, UserCheck, FileText, Search, Trash2, Edit2, ArrowLeft, Bell, User, Eye, Mail, Phone, MapPin, Award, Upload, Edit3, Save } from 'lucide-react';
+import { Container, Row, Col, Card, Button, Modal, Form, ListGroup, Nav, Badge, Tab, Toast, Spinner, InputGroup, Table } from 'react-bootstrap';
+import { Plus, Building2, Users, Gavel, Briefcase, DollarSign, UserCheck, FileText, Search, Trash2, Edit2, ArrowLeft, Bell, User, Eye, Mail, Phone, MapPin, Award, Upload, Edit3, Save, ChevronLeft, ChevronRight, CalendarIcon, Clock } from 'lucide-react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import lawImage from '../assets/law.png'
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import CalendarSummary from '../components/dashboard/CalendarSummary';
+import moment from 'moment';
+import '../components/dashboard/CalendarSummary.css';
+import RegistrarHearingSchedule from '../components/dashboard/RegistrarHearingSchedule';
 
 // Mock data for demonstration
 const mockJudges = [
@@ -52,7 +56,7 @@ const RegistrarDashboard = () => {
   // Courts state
   const [courts, setCourts] = useState([]);
   const [showCourtModal, setShowCourtModal] = useState(false);
-  const [courtForm, setCourtForm] = useState({ name: '', courtId: '', location: '', type: '' });
+  const [courtForm, setCourtForm] = useState({ name: '', location: '', type: '' });
   const [editingCourt, setEditingCourt] = useState(null);
   const [selectedCourt, setSelectedCourt] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -74,13 +78,119 @@ const RegistrarDashboard = () => {
   const [editingRoom, setEditingRoom] = useState(null);
   const [searchRoom, setSearchRoom] = useState('');
 
-  const [courtJudges, setCourtJudges] = useState([]);
+  const [courtJudges, setCourtJudges] = useState([
+    { id: 1, name: 'Judge Judy', position: 'Chief Judge', experience: 15, appointmentDate: '2010-05-01', specialization: 'Criminal Law', assignedCases: ['State v. Smith'] },
+    { id: 2, name: 'Judge Dredd', position: 'Senior Judge', experience: 10, appointmentDate: '2015-03-15', specialization: 'Civil Law', assignedCases: ['People v. Doe'] },
+  ]);
   const [searchJudge, setSearchJudge] = useState('');
-  const [courtProsecutors, setCourtProsecutors] = useState([]);
+  const [showJudgeModal, setShowJudgeModal] = useState(false);
+  const [editingJudge, setEditingJudge] = useState(null);
+  const [judgeForm, setJudgeForm] = useState({
+    name: '',
+    position: '',
+    experience: '',
+    appointmentDate: '',
+    specialization: '',
+    assignedCases: []
+  });
+
+  const [courtProsecutors, setCourtProsecutors] = useState([
+    { id: 1, name: 'Alex Mason', experience: 5, status: 'Active', assignedCases: ['State v. Smith'] },
+    { id: 2, name: 'Sam Fisher', experience: 3, status: 'Active', assignedCases: ['People v. Doe'] },
+    { id: 3, name: 'Lara Croft', experience: 7, status: 'Active', assignedCases: [] },
+  ]);
   const [searchProsecutor, setSearchProsecutor] = useState('');
-  const [courtPayments, setCourtPayments] = useState([]);
+  const [courtPayments, setCourtPayments] = useState([
+    {
+      id: 1,
+      caseName: 'State v. Smith',
+      lawyerName: 'Adeel Khan',
+      clientName: 'John Smith',
+      paymentType: 'Court Fee',
+      purpose: 'Filing',
+      amount: 1000,
+      mode: 'Cash',
+      paymentDate: '2024-06-01',
+      status: 'Paid'
+    },
+    {
+      id: 2,
+      caseName: 'People v. Doe',
+      lawyerName: 'Sara Malik',
+      clientName: 'Jane Doe',
+      paymentType: 'Case Fee',
+      purpose: 'Consultation',
+      amount: 2000,
+      mode: 'Bank Transfer',
+      paymentDate: '2024-06-02',
+      status: 'Pending'
+    }
+  ]);
+  const [searchPayment, setSearchPayment] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({
+    caseName: '',
+    lawyerName: '',
+    clientName: '',
+    paymentType: '',
+    purpose: '',
+    amount: '',
+    mode: '',
+    paymentDate: '',
+    status: 'Pending'
+  });
   const [courtAppeals, setCourtAppeals] = useState([]);
-  const [courtCases, setCourtCases] = useState([]);
+  const [courtCases, setCourtCases] = useState([
+    { 
+      id: 1,
+      title: 'State v. Smith',
+      description: 'Criminal case involving theft',
+      caseType: 'Criminal',
+      filingDate: '2024-01-15',
+      status: 'Open',
+      prosecutor: 'Alex Mason',
+      lawyerName: 'John Doe',
+      clientName: 'Jane Smith',
+      judgeName: 'Judge Judy',
+    },
+    { 
+      id: 2,
+      title: 'People v. Doe',
+      description: 'Civil case regarding property dispute',
+      caseType: 'Civil',
+      filingDate: '2024-02-01',
+      status: 'Pending',
+      prosecutor: 'Sam Fisher',
+      lawyerName: 'John Doe',
+      clientName: 'John Doe',
+      judgeName: 'Judge Dredd',
+    },
+    { 
+      id: 3,
+      title: 'Acme Corp v. Beta',
+      description: 'Corporate case about contract breach',
+      caseType: 'Corporate',
+      filingDate: '2024-01-20',
+      status: 'Closed',
+      prosecutor: 'Lara Croft',
+      lawyerName: 'Bilal Ahmed',
+      clientName: 'Acme Corp',
+      judgeName: 'Judge Amy',
+    },
+    {
+      id: 4,
+      title: 'Ali v. State',
+      description: 'Mock case for judge assignment',
+      caseType: 'Criminal',
+      filingDate: '2024-03-10',
+      status: 'Pending',
+      prosecutor: 'Alex Mason',
+      lawyerName: 'Ali Khan',
+      clientName: 'Ali Khan',
+      judgeName: '', // No judge assigned
+    },
+  ]);
   const [searchCase, setSearchCase] = useState('');
 
   // Loading state
@@ -96,16 +206,44 @@ const RegistrarDashboard = () => {
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [appealForm, setAppealForm] = useState({ appealNumber: '', originalCaseId: '', appellant: '', respondent: '', dateFiled: '', status: '' });
   const [searchAppeal, setSearchAppeal] = useState('');
+  // Appeals state: update to include lawyerName, caseName, clientName, appealDate, status, decisionDate, decision
   const [appeals, setAppeals] = useState([
-    { id: 1, appealNumber: 'AP-2024-0034', originalCaseId: 'CASE001', appellant: 'Johnathan Crane', respondent: 'State of Metropolis', dateFiled: '2024-07-01', status: 'Under Review' },
-    { id: 2, appealNumber: 'AP-2024-0035', originalCaseId: 'CASE004', appellant: 'B. Allen', respondent: 'City of Central', dateFiled: '2024-07-15', status: 'Hearing Scheduled' },
-    { id: 3, appealNumber: 'AP-2023-0190', originalCaseId: 'CV-2023-0815', appellant: 'Stark Industries', respondent: 'Pym Technologies', dateFiled: '2023-11-05', status: 'Decided' },
+    {
+      id: 1,
+      lawyerName: 'Adeel Khan',
+      caseName: 'State v. Smith',
+      clientName: 'John Smith',
+      appealDate: '2024-07-01',
+      status: 'Under Review',
+      decisionDate: '',
+      decision: '',
+    },
+    {
+      id: 2,
+      lawyerName: 'Sara Malik',
+      caseName: 'People v. Doe',
+      clientName: 'Jane Doe',
+      appealDate: '2024-07-15',
+      status: 'Hearing Scheduled',
+      decisionDate: '',
+      decision: '',
+    },
+    {
+      id: 3,
+      lawyerName: 'Bilal Ahmed',
+      caseName: 'Acme Corp v. Beta',
+      clientName: 'Acme Corp',
+      appealDate: '2023-11-05',
+      status: 'Decided',
+      decisionDate: '2024-03-20',
+      decision: 'Appeal granted in favor of appellant.',
+    }
   ]);
   const filteredAppeals = appeals.filter(a =>
-    a.appealNumber.toLowerCase().includes(searchAppeal.toLowerCase()) ||
-    a.originalCaseId.toLowerCase().includes(searchAppeal.toLowerCase()) ||
-    a.appellant.toLowerCase().includes(searchAppeal.toLowerCase()) ||
-    a.respondent.toLowerCase().includes(searchAppeal.toLowerCase())
+    a.lawyerName.toLowerCase().includes(searchAppeal.toLowerCase()) ||
+    a.caseName.toLowerCase().includes(searchAppeal.toLowerCase()) ||
+    a.clientName.toLowerCase().includes(searchAppeal.toLowerCase()) ||
+    a.status.toLowerCase().includes(searchAppeal.toLowerCase())
   );
 
   // Add state for modals and forms for rooms and cases
@@ -113,19 +251,68 @@ const RegistrarDashboard = () => {
   const [viewingRoom, setViewingRoom] = useState(null);
   const [showCaseModal, setShowCaseModal] = useState(false);
   const [editingCase, setEditingCase] = useState(null);
-  const [caseForm, setCaseForm] = useState({ number: '', title: '', parties: '', type: '', status: '' });
+  const [caseForm, setCaseForm] = useState({
+    title: '',
+    description: '',
+    caseType: '',
+    clientName: '',
+    lawyerName: '',
+    prosecutor: ''
+  });
   const [showCaseViewModal, setShowCaseViewModal] = useState(false);
   const [viewingCase, setViewingCase] = useState(null);
   const [cases, setCases] = useState([
-    { id: 1, number: 'CASE001', title: 'State v. Smith', parties: 'State, Smith', type: 'Criminal', status: 'Open' },
-    { id: 2, number: 'CASE002', title: 'People v. Doe', parties: 'People, Doe', type: 'Civil', status: 'Pending' },
-    { id: 3, number: 'CASE003', title: 'Acme Corp v. Beta', parties: 'Acme, Beta', type: 'Corporate', status: 'Closed' },
+    {
+      id: 1,
+      title: 'State v. Smith',
+      description: 'Criminal case involving theft',
+      caseType: 'Criminal',
+      filingDate: '2024-01-15',
+      status: 'Open',
+      decisionDate: '',
+      decisionSummary: '',
+      verdict: '',
+      lawyerName: 'Adeel Khan',
+      clientName: 'John Smith',
+      judgeName: 'Judge Judy',
+    },
+    {
+      id: 2,
+      title: 'People v. Doe',
+      description: 'Civil case regarding property dispute',
+      caseType: 'Civil',
+      filingDate: '2024-02-01',
+      status: 'Pending',
+      decisionDate: '',
+      decisionSummary: '',
+      verdict: '',
+      lawyerName: 'Sara Malik',
+      clientName: 'Jane Doe',
+      judgeName: 'Judge Dredd',
+    },
+    {
+      id: 3,
+      title: 'Acme Corp v. Beta',
+      description: 'Corporate case about contract breach',
+      caseType: 'Corporate',
+      filingDate: '2024-01-20',
+      status: 'Closed',
+      decisionDate: '2024-03-15',
+      decisionSummary: 'The court found in favor of the plaintiff based on the evidence presented.',
+      verdict: 'Plaintiff wins',
+      lawyerName: 'Bilal Ahmed',
+      clientName: 'Acme Corp',
+      judgeName: 'Judge Amy',
+    }
   ]);
-  const filteredCases = cases.filter(c =>
-    c.number.toLowerCase().includes(searchCase.toLowerCase()) ||
-    c.title.toLowerCase().includes(searchCase.toLowerCase()) ||
-    c.parties.toLowerCase().includes(searchCase.toLowerCase())
-  );
+  const filteredCases = courtCases.filter(c => {
+    if (!searchCase.trim()) return true;
+    return (
+      (c.title || '').toLowerCase().includes(searchCase.toLowerCase()) ||
+      (c.description || '').toLowerCase().includes(searchCase.toLowerCase()) ||
+      (c.caseType || '').toLowerCase().includes(searchCase.toLowerCase())
+    );
+  });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileData, setProfileData] = useState(() => {
     const saved = localStorage.getItem('registrarProfile');
@@ -138,18 +325,44 @@ const RegistrarDashboard = () => {
   const [profileImage, setProfileImage] = useState(() => localStorage.getItem(PROFILE_IMAGE_KEY) || null);
   const fileInputRef = useRef(null);
 
+  // Add these state variables at the top with other state declarations
+  const [showFinalDecisionModal, setShowFinalDecisionModal] = useState(false);
+  const [selectedCase, setSelectedCase] = useState(null);
+
+  // Add state variables for evidence and witnesses
+  const [evidence, setEvidence] = useState([
+    { id: 1, evidenceType: 'Document', description: 'Contract agreement', submissionDate: '2024-01-20', caseName: 'State v. Smith', lawyerName: 'Adeel Khan', file: 'contract.pdf' },
+    { id: 2, evidenceType: 'Physical', description: 'Weapon', submissionDate: '2024-02-01', caseName: 'People v. Doe', lawyerName: 'Sara Malik', file: 'weapon.jpg' },
+  ]);
+  const [searchEvidence, setSearchEvidence] = useState('');
+  const filteredEvidence = evidence.filter(e =>
+    e.caseName.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+    e.evidenceType.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+    e.description.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+    e.lawyerName.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+    (e.file && e.file.toLowerCase().includes(searchEvidence.toLowerCase()))
+  );
+
+  const [witnesses, setWitnesses] = useState([
+    { id: 1, name: 'John Smith', caseName: 'State v. Smith', contact: 'john@email.com', status: 'Scheduled', lawyerName: 'Adeel Khan', statement: 'Saw the accused at the scene.' },
+    { id: 2, name: 'Jane Doe', caseName: 'People v. Doe', contact: 'jane@email.com', status: 'Testified', lawyerName: 'Sara Malik', statement: 'Provided testimony in court.' },
+  ]);
+  const [searchWitness, setSearchWitness] = useState('');
+  const filteredWitnesses = witnesses.filter(w =>
+    w.name.toLowerCase().includes(searchWitness.toLowerCase()) ||
+    w.caseName.toLowerCase().includes(searchWitness.toLowerCase()) ||
+    w.contact.toLowerCase().includes(searchWitness.toLowerCase()) ||
+    w.lawyerName.toLowerCase().includes(searchWitness.toLowerCase()) ||
+    (w.statement && w.statement.toLowerCase().includes(searchWitness.toLowerCase()))
+  );
+
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const storedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
     if (storedImage) setProfileImage(storedImage);
   }, []);
-
-  useEffect(() => {
-    // Always show registration form on mount
-    setCourts([]);
-    setSelectedCourt(null);
-  }, [location.pathname]);
 
   const handleProfileImageUpload = (event) => {
     const file = event.target.files[0];
@@ -173,38 +386,25 @@ const RegistrarDashboard = () => {
   const handleCourtFormChange = (e) => setCourtForm({ ...courtForm, [e.target.name]: e.target.value });
   const handleCourtSubmit = (e) => {
     e.preventDefault();
-    if (!courtForm.name.trim()) return;
-    if (courts.length >= 1 && !editingCourt) {
-      showToast('You can only register one court.', 'danger');
-      return;
-    }
-    setLoading(true);
-    setTimeout(() => {
       if (editingCourt) {
-        const updatedCourt = { ...editingCourt, ...courtForm };
-        setCourts(courts.map(c => c.id === editingCourt.id ? updatedCourt : c));
+      setCourts(courts.map(c => c.id === editingCourt.id ? { ...editingCourt, ...courtForm } : c));
         showToast('Court updated!');
-      } else {
-        const newCourt = {
-          id: Date.now(),
-          name: courtForm.name,
-          location: courtForm.location,
-          rooms: [], judges: [], prosecutors: [], payments: [], appeals: [], cases: [],
-        };
-        setCourts([newCourt]);
-        setSelectedCourt(newCourt);
-        setActiveTab('courtRooms');
-        showToast('Court registered!');
-      }
-      setCourtForm({ name: '', courtId: '', location: '', type: '' });
       setShowCourtModal(false);
       setEditingCourt(null);
-      setLoading(false);
-    }, 700);
+      setCourtForm({ name: '', location: '', type: '' });
+    } else {
+      setCourts([...courts, { ...courtForm, id: Date.now() }]);
+      localStorage.setItem('courtRegistered', 'true');
+      setIsCourtRegistered(true);
+      showToast('Court registered successfully!');
+      setShowCourtModal(false);
+      setEditingCourt(null);
+      setCourtForm({ name: '', location: '', type: '' });
+    }
   };
   const handleEditCourt = (court) => {
     setEditingCourt(court);
-    setCourtForm({ name: court.name, courtId: court.courtId, location: court.location, type: court.type });
+    setCourtForm({ name: court.name, location: court.location, type: court.type });
     setShowCourtModal(true);
   };
   const handleDeleteCourt = (court) => {
@@ -304,17 +504,19 @@ const RegistrarDashboard = () => {
   const isCourtRegistered = courts.length === 1;
 
   // Sidebar navigation (dynamic based on registration)
-  const navItems = isCourtRegistered
-    ? [
-        { key: 'dashboard', label: 'Dashboard', icon: <Building2 size={18} /> },
-    { key: 'courtRooms', label: 'Court Rooms', icon: <Users size={18} /> },
-        { key: 'cases', label: 'Cases', icon: <Briefcase size={18} /> },
-    { key: 'appeals', label: 'Appeals', icon: <FileText size={18} /> },
-        { key: 'courtRegistration', label: 'Court Registration', icon: <Plus size={18} /> },
-      ]
-    : [
-        { key: 'dashboard', label: 'Dashboard', icon: <Building2 size={18} /> },
-        { key: 'courtRegistration', label: 'Court Registration', icon: <Plus size={18} /> },
+  const navItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: <Building2 size={16} /> },
+    { key: 'courtRooms', label: 'Court Rooms', icon: <Users size={16} /> },
+    { key: 'cases', label: 'Cases', icon: <Briefcase size={16} /> },
+    { key: 'hearingSchedule', label: 'Hearing Schedule', icon: <Gavel size={16} /> },
+    { key: 'caseHistory', label: 'Manage Case History', icon: <FileText size={16} /> },
+    { key: 'appeals', label: 'Appeals', icon: <FileText size={16} /> },
+    { key: 'evidence', label: 'Evidence', icon: <FileText size={16} /> },
+    { key: 'witnesses', label: 'Witnesses', icon: <Users size={16} /> },
+    { key: 'payments', label: 'Payments', icon: <DollarSign size={16} /> },
+    { key: 'prosecutors', label: 'Prosecutors', icon: <Users size={16} /> },
+    { key: 'judges', label: 'Judges', icon: <Users size={16} /> },
+    { key: 'remands', label: 'Remands', icon: <Gavel size={16} /> },
   ];
 
   // Filter helpers
@@ -361,15 +563,28 @@ const RegistrarDashboard = () => {
   const handleCaseSubmit = (e) => {
     e.preventDefault();
     if (editingCase) {
-      setCases(cases.map(c => c.id === editingCase.id ? { ...editingCase, ...caseForm } : c));
-      showToast('Case updated!');
+      setCourtCases(courtCases.map(c => 
+        c.id === editingCase.id ? { ...c, ...caseForm } : c
+      ));
     } else {
-      setCases([...cases, { ...caseForm, id: Date.now() }]);
-      showToast('Case added!');
+      const newCase = {
+        id: Date.now(),
+        ...caseForm,
+        filingDate: new Date().toLocaleDateString(),
+        status: 'Pending'
+      };
+      setCourtCases([newCase, ...courtCases]);
     }
     setShowCaseModal(false);
     setEditingCase(null);
-    setCaseForm({ number: '', title: '', parties: '', type: '', status: '' });
+    setCaseForm({
+      title: '',
+      description: '',
+      caseType: '',
+      clientName: '',
+      lawyerName: '',
+      prosecutor: ''
+    });
   };
 
   // Profile handlers
@@ -393,89 +608,341 @@ const RegistrarDashboard = () => {
   };
   const [courtRegistrarInfo] = useState(getCourtRegistrarInfo());
 
-  if (courts.length === 0) {
-    return (
-      <div style={{ minHeight: '100vh', width: '100vw', background: 'linear-gradient(135deg, #e0e7ef 60%, #c9e7fa 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto', position: 'relative' }}>
-        {/* Decorative background image */}
-        <img src={lawImage} alt="background" style={{ position: 'absolute', top: 0, right: 0, width: 320, opacity: 0.08, pointerEvents: 'none', zIndex: 0 }} />
-        <Card className="shadow-sm" style={{ maxWidth: 480, width: '100%', borderRadius: 16, padding: '2.5rem 0', zIndex: 1, background: 'rgba(255,255,255,0.98)' }}>
-          <Card.Body>
-            {/* Registrar Info Section */}
-            <div className="mb-4 text-center">
-              <div className="mb-2">
-                <span className="fw-bold" style={{ fontSize: 22, color: '#22304a' }}>Welcome, {courtRegistrarInfo.name || 'CourtRegistrar'}!</span>
-              </div>
-              <div className="text-muted mb-1">Please register your court to continue.</div>
-              <div className="d-flex flex-wrap justify-content-center gap-3 mt-2" style={{ fontSize: 15 }}>
-                <span><b>Email:</b> {courtRegistrarInfo.email || 'N/A'}</span>
-                <span><b>Phone:</b> {courtRegistrarInfo.phone || 'N/A'}</span>
-                <span><b>CNIC:</b> {courtRegistrarInfo.cnic || 'N/A'}</span>
-                <span><b>DOB:</b> {courtRegistrarInfo.dob || 'N/A'}</span>
-              </div>
-            </div>
-            <h2 className="fw-bold mb-3 text-center">Register Your Court</h2>
-            <Form onSubmit={handleCourtSubmit}>
-              <Row className="g-3">
-                <Col xs={12} sm={6}>
-                  <Form.Group>
-                    <Form.Label>Court Name</Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="name"
-                      value={courtForm.name}
-                      onChange={handleCourtFormChange}
-                      required
-                      autoFocus
-                    />
-                  </Form.Group>
-                </Col>
-                <Col xs={12} sm={6}>
-                  <Form.Group>
-                    <Form.Label>Court ID</Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="courtId"
-                      value={courtForm.courtId}
-                      onChange={handleCourtFormChange}
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col xs={12} sm={6}>
-                  <Form.Group>
-                    <Form.Label>Location</Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="location"
-                      value={courtForm.location}
-                      onChange={handleCourtFormChange}
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col xs={12} sm={6}>
-                  <Form.Group>
-                    <Form.Label>Type</Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="type"
-                      value={courtForm.type}
-                      onChange={handleCourtFormChange}
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-              <Button variant="primary" type="submit" className="w-100 mt-4" disabled={loading} style={{ fontWeight: 600, fontSize: '1.1rem', borderRadius: 8 }}>
-                {loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}
-                Register Court
-              </Button>
-            </Form>
-          </Card.Body>
-        </Card>
-      </div>
-    );
-  }
+  // Add this handler function with other handlers
+  const handleViewFinalDecision = (case_) => {
+    setSelectedCase(case_);
+    setShowFinalDecisionModal(true);
+  };
+
+  // Add handlers for evidence
+  const handleEvidenceAdd = () => {
+    setShowEvidenceModal(true);
+    setEditingEvidence(null);
+    setEvidenceForm({
+      caseTitle: '',
+      type: '',
+      description: '',
+      dateAdded: '',
+      status: 'Pending'
+    });
+  };
+
+  const handleEvidenceEdit = (evidence) => {
+    setEditingEvidence(evidence);
+    setEvidenceForm({ ...evidence });
+    setShowEvidenceModal(true);
+  };
+
+  const handleEvidenceView = (evidence) => {
+    setViewingEvidence(evidence);
+    setShowEvidenceViewModal(true);
+  };
+
+  const handleEvidenceDelete = (evidence) => {
+    setEvidence(evidence.filter(e => e.id !== evidence.id));
+    showToast('Evidence deleted!', 'danger');
+  };
+
+  // Add handlers for witnesses
+  const handleWitnessAdd = () => {
+    setShowWitnessModal(true);
+    setEditingWitness(null);
+    setWitnessForm({
+      name: '',
+      caseTitle: '',
+      contact: '',
+      status: 'Pending'
+    });
+  };
+
+  const handleWitnessEdit = (witness) => {
+    setEditingWitness(witness);
+    setWitnessForm({ ...witness });
+    setShowWitnessModal(true);
+  };
+
+  const handleWitnessView = (witness) => {
+    setViewingWitness(witness);
+    setShowWitnessViewModal(true);
+  };
+
+  const handleWitnessDelete = (witness) => {
+    setWitnesses(witnesses.filter(w => w.id !== witness.id));
+    showToast('Witness deleted!', 'danger');
+  };
+
+  // Add state variables for evidence and witness modals
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [showEvidenceViewModal, setShowEvidenceViewModal] = useState(false);
+  const [editingEvidence, setEditingEvidence] = useState(null);
+  const [viewingEvidence, setViewingEvidence] = useState(null);
+  const [evidenceForm, setEvidenceForm] = useState({
+    caseTitle: '',
+    type: '',
+    description: '',
+    dateAdded: '',
+    status: 'Pending'
+  });
+
+  const [showWitnessModal, setShowWitnessModal] = useState(false);
+  const [showWitnessViewModal, setShowWitnessViewModal] = useState(false);
+  const [editingWitness, setEditingWitness] = useState(null);
+  const [viewingWitness, setViewingWitness] = useState(null);
+  const [witnessForm, setWitnessForm] = useState({
+    name: '',
+    caseTitle: '',
+    contact: '',
+    status: 'Pending'
+  });
+
+  // Add handlers for evidence form
+  const handleEvidenceFormChange = (e) => setEvidenceForm({ ...evidenceForm, [e.target.name]: e.target.value });
+  const handleEvidenceSubmit = (e) => {
+    e.preventDefault();
+    if (editingEvidence) {
+      setEvidence(evidence.map(e => e.id === editingEvidence.id ? { ...editingEvidence, ...evidenceForm } : e));
+      showToast('Evidence updated!');
+    } else {
+      setEvidence([...evidence, { ...evidenceForm, id: Date.now() }]);
+      showToast('Evidence added!');
+    }
+    setShowEvidenceModal(false);
+    setEditingEvidence(null);
+    setEvidenceForm({
+      caseTitle: '',
+      type: '',
+      description: '',
+      dateAdded: '',
+      status: 'Pending'
+    });
+  };
+
+  // Add handlers for witness form
+  const handleWitnessFormChange = (e) => setWitnessForm({ ...witnessForm, [e.target.name]: e.target.value });
+  const handleWitnessSubmit = (e) => {
+    e.preventDefault();
+    if (editingWitness) {
+      setWitnesses(witnesses.map(w => w.id === editingWitness.id ? { ...editingWitness, ...witnessForm } : w));
+      showToast('Witness updated!');
+    } else {
+      setWitnesses([...witnesses, { ...witnessForm, id: Date.now() }]);
+      showToast('Witness added!');
+    }
+    setShowWitnessModal(false);
+    setEditingWitness(null);
+    setWitnessForm({
+      name: '',
+      caseTitle: '',
+      contact: '',
+      status: 'Pending'
+    });
+  };
+
+  // Add state for editing appeal decision
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [decisionAppeal, setDecisionAppeal] = useState(null);
+  const [decisionForm, setDecisionForm] = useState({ status: '', decisionDate: '', decision: '' });
+
+  const handleOpenDecisionModal = (appeal) => {
+    setDecisionAppeal(appeal);
+    setDecisionForm({
+      status: appeal.status || '',
+      decisionDate: appeal.decisionDate || '',
+      decision: appeal.decision || '',
+    });
+    setShowDecisionModal(true);
+  };
+  const handleCloseDecisionModal = () => {
+    setShowDecisionModal(false);
+    setDecisionAppeal(null);
+  };
+  const handleDecisionFormChange = (e) => {
+    setDecisionForm({ ...decisionForm, [e.target.name]: e.target.value });
+  };
+  const handleDecisionSubmit = (e) => {
+    e.preventDefault();
+    setAppeals(appeals.map(a =>
+      a.id === decisionAppeal.id
+        ? { ...a, status: decisionForm.status, decisionDate: decisionForm.decisionDate, decision: decisionForm.decision }
+        : a
+    ));
+    setShowDecisionModal(false);
+    setDecisionAppeal(null);
+  };
+
+  // Add after other state declarations
+  const [showProsecutorModal, setShowProsecutorModal] = useState(false);
+  const [editingProsecutor, setEditingProsecutor] = useState(null);
+  const [prosecutorForm, setProsecutorForm] = useState({
+    name: '',
+    experience: '',
+    status: 'Active',
+    assignedCases: []
+  });
+
+  // Add after other handlers
+  const handleProsecutorFormChange = (e) => {
+    setProsecutorForm({ ...prosecutorForm, [e.target.name]: e.target.value });
+  };
+
+  const handleProsecutorSubmit = (e) => {
+    e.preventDefault();
+    if (editingProsecutor) {
+      setCourtProsecutors(courtProsecutors.map(p => 
+        p.id === editingProsecutor.id ? { ...editingProsecutor, ...prosecutorForm } : p
+      ));
+    } else {
+      setCourtProsecutors([...courtProsecutors, { ...prosecutorForm, id: Date.now() }]);
+    }
+    setShowProsecutorModal(false);
+    setEditingProsecutor(null);
+    setProsecutorForm({ name: '', experience: '', status: 'Active', assignedCases: [] });
+  };
+
+  const handleEditProsecutor = (prosecutor) => {
+    setEditingProsecutor(prosecutor);
+    setProsecutorForm({ ...prosecutor });
+    setShowProsecutorModal(true);
+  };
+
+  const handleDeleteProsecutor = (prosecutor) => {
+    setCourtProsecutors(courtProsecutors.filter(p => p.id !== prosecutor.id));
+  };
+
+  // JUDGES
+  const handleJudgeFormChange = (e) => {
+    setJudgeForm({ ...judgeForm, [e.target.name]: e.target.value });
+  };
+  const handleJudgeSubmit = (e) => {
+    e.preventDefault();
+    if (editingJudge) {
+      setCourtJudges(courtJudges.map(j => j.id === editingJudge.id ? { ...editingJudge, ...judgeForm } : j));
+    } else {
+      setCourtJudges([...courtJudges, { ...judgeForm, id: Date.now() }]);
+    }
+    setShowJudgeModal(false);
+    setEditingJudge(null);
+    setJudgeForm({ name: '', position: '', experience: '', appointmentDate: '', specialization: '', assignedCases: [] });
+  };
+  const handleEditJudge = (judge) => {
+    setEditingJudge(judge);
+    setJudgeForm({ ...judge });
+    setShowJudgeModal(true);
+  };
+  const handleDeleteJudge = (judge) => {
+    setCourtJudges(courtJudges.filter(j => j.id !== judge.id));
+  };
+
+  // Remands
+  const [remands, setRemands] = useState([
+    { id: 1, caseName: 'State v. Smith', lawyerName: 'John Doe', clientName: 'Jane Smith', remandType: 'Police', remandDate: '2024-06-10', remandReason: 'Further investigation', status: 'Active', duration: '7 days' },
+    { id: 2, caseName: 'People v. Doe', lawyerName: 'John Doe', clientName: 'John Doe', remandType: 'Judicial', remandDate: '2024-06-12', remandReason: 'Awaiting trial', status: 'Completed', duration: '14 days' },
+  ]);
+  const [showRemandModal, setShowRemandModal] = useState(false);
+  const [editingRemand, setEditingRemand] = useState(null);
+  const [remandForm, setRemandForm] = useState({
+    caseName: '',
+    lawyerName: '',
+    clientName: '',
+    remandType: '',
+    remandDate: '',
+    remandReason: '',
+    status: '',
+    duration: ''
+  });
+
+  // Remand handlers
+  const handleRemandFormChange = (e) => {
+    setRemandForm({ ...remandForm, [e.target.name]: e.target.value });
+  };
+  const handleRemandSubmit = (e) => {
+    e.preventDefault();
+    if (editingRemand) {
+      setRemands(remands.map(r => r.id === editingRemand.id ? { ...editingRemand, ...remandForm } : r));
+    } else {
+      setRemands([{ ...remandForm, id: Date.now() }, ...remands]);
+    }
+    setShowRemandModal(false);
+    setEditingRemand(null);
+    setRemandForm({ caseName: '', lawyerName: '', clientName: '', remandType: '', remandDate: '', remandReason: '', status: '', duration: '' });
+  };
+  const handleEditRemand = (remand) => {
+    setEditingRemand(remand);
+    setRemandForm({ ...remand });
+    setShowRemandModal(true);
+  };
+  const handleDeleteRemand = (remand) => {
+    setRemands(remands.filter(r => r.id !== remand.id));
+  };
+
+  // Add state for case history
+  const [caseHistory, setCaseHistory] = useState([
+    {
+      id: 1,
+      caseName: 'State v. Smith',
+      judgeName: 'Judge Judy',
+      clientName: 'John Smith',
+      lawyerName: 'Adeel Khan',
+      remarks: 'Initial hearing completed',
+      actionDate: '2024-03-20',
+      actionTaken: 'Hearing',
+      status: 'Completed',
+    },
+    {
+      id: 2,
+      caseName: 'People v. Doe',
+      judgeName: 'Judge Dredd',
+      clientName: 'Jane Doe',
+      lawyerName: 'Sara Malik',
+      remarks: 'Adjourned due to absence',
+      actionDate: '2024-03-21',
+      actionTaken: 'Adjournment',
+      status: 'Pending',
+    },
+  ]);
+  const [showCaseHistoryModal, setShowCaseHistoryModal] = useState(false);
+  const [editingCaseHistory, setEditingCaseHistory] = useState(null);
+  const [caseHistoryForm, setCaseHistoryForm] = useState({
+    caseName: '',
+    judgeName: '',
+    clientName: '',
+    lawyerName: '',
+    remarks: '',
+    actionDate: '',
+    actionTaken: '',
+    status: '',
+  });
+
+  // Case History handlers
+  const handleCaseHistoryFormChange = (e) => setCaseHistoryForm({ ...caseHistoryForm, [e.target.name]: e.target.value });
+  const handleCaseHistorySubmit = (e) => {
+    e.preventDefault();
+    if (editingCaseHistory) {
+      setCaseHistory(caseHistory.map(h => h.id === editingCaseHistory.id ? { ...editingCaseHistory, ...caseHistoryForm } : h));
+    } else {
+      setCaseHistory([{ ...caseHistoryForm, id: Date.now() }, ...caseHistory]);
+    }
+    setShowCaseHistoryModal(false);
+    setEditingCaseHistory(null);
+    setCaseHistoryForm({
+      caseName: '',
+      judgeName: '',
+      clientName: '',
+      lawyerName: '',
+      remarks: '',
+      actionDate: '',
+      actionTaken: '',
+      status: '',
+    });
+  };
+  const handleEditCaseHistory = (entry) => {
+    setEditingCaseHistory(entry);
+    setCaseHistoryForm({ ...entry });
+    setShowCaseHistoryModal(true);
+  };
+  const handleDeleteCaseHistory = (id) => {
+    setCaseHistory(caseHistory.filter(h => h.id !== id));
+  };
 
   return (
     <div style={{ minHeight: '100vh', width: '100vw', height: '100vh', overflow: 'hidden', background: '#f4f6fa', display: 'flex', flexDirection: 'column' }}>
@@ -484,29 +951,72 @@ const RegistrarDashboard = () => {
         <div style={{ fontWeight: 600, fontSize: 22 }}>Court Central</div>
         <div className="d-flex align-items-center gap-4">
           <Bell size={24} style={{ color: '#25304a' }} />
-          <User size={28} style={{ color: '#25304a' }} />
+          <Button 
+            variant="link" 
+            className="text-decoration-none d-flex align-items-center gap-2" 
+            onClick={() => setShowProfileModal(true)}
+            style={{ color: '#25304a' }}
+          >
+            <User size={28} />
+            <span>Profile</span>
+          </Button>
+          <Button 
+            variant="link" 
+            className="text-decoration-none d-flex align-items-center gap-2" 
+            onClick={handleLogout}
+            style={{ color: '#25304a' }}
+          >
+            <i className="bi bi-box-arrow-right" style={{ fontSize: 24 }}></i>
+            <span>Logout</span>
+          </Button>
         </div>
       </div>
       {/* Main Content Flex Row */}
       <div style={{ flex: '1 1 0', display: 'flex', width: '100%', height: '100%', minHeight: 0 }}>
           {/* Sidebar */}
-        <div style={{ width: 250, background: '#25304a', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 0, flex: '0 0 250px' }}>
+        <div style={{
+          width: 200,
+          background: 'linear-gradient(135deg, #1ec6b6 0%, #22304a 100%)',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          minHeight: 0,
+          flex: '0 0 200px',
+          borderTopRightRadius: 18,
+          borderBottomRightRadius: 18,
+          boxShadow: '2px 0 16px 0 rgba(34,48,74,0.08)',
+        }}>
           <div>
             <div className="d-flex align-items-center gap-2 px-4 py-4" style={{ fontWeight: 700, fontSize: 22 }}>
-              <i className="bi bi-bank2" style={{ fontSize: 28, color: '#1ec6b6' }}></i>
-              <span style={{ color: '#1ec6b6' }}>Court Central</span>
+              <i className="bi bi-bank2" style={{ fontSize: 20, color: '#fff' }}></i>
+              <span style={{ color: '#fff', fontSize: 16 }}>Court Central</span>
             </div>
-            <Nav className="flex-column gap-1 px-2">
-              <Nav.Link className={`d-flex align-items-center gap-2 sidebar-link${selectedPage === 'dashboard' ? ' active' : ''}`} onClick={() => setSelectedPage('dashboard')}><i className="bi bi-grid-1x2"></i> Dashboard</Nav.Link>
-              <Nav.Link className={`d-flex align-items-center gap-2 sidebar-link${selectedPage === 'courtRooms' ? ' active' : ''}`} onClick={() => setSelectedPage('courtRooms')}><i className="bi bi-buildings"></i> Court Rooms</Nav.Link>
-              <Nav.Link className={`d-flex align-items-center gap-2 sidebar-link${selectedPage === 'cases' ? ' active' : ''}`} onClick={() => setSelectedPage('cases')}><i className="bi bi-file-earmark-text"></i> Cases</Nav.Link>
-              <Nav.Link className={`d-flex align-items-center gap-2 sidebar-link${selectedPage === 'appeals' ? ' active' : ''}`} onClick={() => setSelectedPage('appeals')}><i className="bi bi-balance-scale"></i> Appeals</Nav.Link>
-            </Nav>
-          </div>
-          <div className="mb-4 px-2">
-            <Nav className="flex-column gap-1">
-              <Nav.Link className="d-flex align-items-center gap-2 sidebar-link" onClick={() => setShowProfileModal(true)}><i className="bi bi-person"></i> Profile</Nav.Link>
-              <Nav.Link className="d-flex align-items-center gap-2 sidebar-link" onClick={handleLogout}><i className="bi bi-box-arrow-right"></i> Logout</Nav.Link>
+            <Nav className="flex-column gap-1 px-1">
+              {navItems.map(item => (
+                <Nav.Link
+                  key={item.key}
+                  className={`d-flex align-items-center gap-1 sidebar-link${selectedPage === item.key ? ' active' : ''}`}
+                  onClick={() => setSelectedPage(item.key)}
+                  style={{
+                    background: selectedPage === item.key ? 'rgba(255,255,255,0.12)' : 'transparent',
+                    color: selectedPage === item.key ? '#1ec6b6' : '#fff',
+                    fontWeight: selectedPage === item.key ? 600 : 500,
+                    borderRadius: 8,
+                    marginBottom: 1,
+                    padding: '6px 8px',
+                    fontSize: 14,
+                    transition: 'all 0.18s',
+                    boxShadow: selectedPage === item.key ? '0 2px 8px rgba(30,198,182,0.08)' : 'none',
+                    borderLeft: selectedPage === item.key ? '3px solid #fff' : '3px solid transparent',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.background = selectedPage === item.key ? 'rgba(255,255,255,0.12)' : 'transparent'}
+                >
+                  {React.cloneElement(item.icon, { size: 16 })}
+                  <span style={{ fontSize: 13 }}>{item.label}</span>
+                </Nav.Link>
+              ))}
             </Nav>
           </div>
         </div>
@@ -528,9 +1038,9 @@ const RegistrarDashboard = () => {
                     <Card className="shadow-sm border-0 mb-4" style={{ borderRadius: 16 }}>
                       <Card.Body>
                         <h3 className="fw-bold mb-3" style={{ color: '#22304a' }}><i className="bi bi-bank2 me-2"></i>Assigned Court Details</h3>
-                        <div className="mb-3">
+                                <div className="mb-3">
                           <img src={mockCourt.image} alt="court" style={{ width: '100%', borderRadius: 12, objectFit: 'cover', maxHeight: 180 }} />
-                        </div>
+                                </div>
                         <h4 className="fw-bold mb-2">{mockCourt.name}</h4>
                         <Row className="mb-2">
                           <Col md={6}><i className="bi bi-geo-alt me-1"></i> <b>Location:</b> {mockCourt.location}</Col>
@@ -580,7 +1090,7 @@ const RegistrarDashboard = () => {
                           <Button variant="light" className="d-flex align-items-center gap-2 justify-content-start text-start border" style={{ fontWeight: 500 }}>
                             <i className="bi bi-buildings me-2" style={{ color: '#1ec6b6', fontSize: 20 }}></i> Manage Court Rooms
                             <div className="ms-auto small text-muted">View and update court room details.</div>
-                        </Button>
+                                  </Button>
                           <Button variant="light" className="d-flex align-items-center gap-2 justify-content-start text-start border" style={{ fontWeight: 500 }}>
                             <i className="bi bi-file-earmark-text me-2" style={{ color: '#1ec6b6', fontSize: 20 }}></i> Manage Cases
                             <div className="ms-auto small text-muted">Access and manage case information.</div>
@@ -603,34 +1113,30 @@ const RegistrarDashboard = () => {
                     <div>
                       <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-buildings me-2"></i>Court Room Management</h2>
                       <div className="text-muted mb-2">View, add, or edit court rooms for the assigned courthouse.</div>
-                            </div>
+                    </div>
                     <Button variant="primary" className="d-flex align-items-center gap-2 px-4 py-2" style={{ fontWeight: 500, fontSize: '1.1rem', borderRadius: 8 }} onClick={handleRoomAdd}>
                       <i className="bi bi-plus-lg"></i> Add New Room
-                            </Button>
-                          </div>
+                    </Button>
+                  </div>
                   <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
                     <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
-                    <Form.Control placeholder="Search rooms by number, name, or type..." />
+                    <Form.Control placeholder="Search rooms by number..." value={searchRoom} onChange={e => setSearchRoom(e.target.value)} />
                   </InputGroup>
                   <div className="table-responsive">
                     <table className="table align-middle mb-0">
                       <thead style={{ background: '#f4f6fa' }}>
                         <tr style={{ color: '#22304a', fontWeight: 600 }}>
                           <th>Room Number</th>
-                          <th>Name</th>
-                          <th><i className="bi bi-people"></i> Capacity</th>
-                          <th><i className="bi bi-building"></i> Type</th>
-                          <th><i className="bi bi-calendar-check"></i> Status</th>
+                          <th>Capacity</th>
+                          <th>Status</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {courtRooms.map((room, i) => (
+                        {filteredRooms.map((room, i) => (
                           <tr key={i}>
                             <td>{room.number}</td>
-                            <td>{room.name}</td>
                             <td>{room.capacity}</td>
-                            <td>{room.type}</td>
                             <td>
                               {room.status === 'Available' && <span className="badge bg-primary">Available</span>}
                               {room.status === 'Occupied' && <span className="badge bg-danger">Occupied</span>}
@@ -646,8 +1152,7 @@ const RegistrarDashboard = () => {
                         ))}
                       </tbody>
                     </table>
-                            </div>
-                  <div className="text-muted mt-3">A list of court rooms.</div>
+                  </div>
                 </Card.Body>
               </Card>
             )}
@@ -656,53 +1161,110 @@ const RegistrarDashboard = () => {
                 <Card.Body>
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <div>
-                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-gavel me-2"></i>Case Access Management</h2>
-                      <div className="text-muted mb-2">View, add, or manage cases within the court system.</div>
-                          </div>
-                    <Button variant="primary" className="d-flex align-items-center gap-2 px-4 py-2" style={{ fontWeight: 500, fontSize: '1.1rem', borderRadius: 8 }} onClick={handleCaseAdd}>
-                      <i className="bi bi-plus-lg"></i> Add New Case
-                    </Button>
-                          </div>
+                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-file-earmark-text me-2"></i>Case Management</h2>
+                      <div className="text-muted mb-2">View and manage cases in your court.</div>
+                    </div>
+                  </div>
                   <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
                     <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
-                    <Form.Control placeholder="Search cases by number, title, or parties..." />
-                            </InputGroup>
+                    <Form.Control placeholder="Search cases..." value={searchCase} onChange={e => setSearchCase(e.target.value)} />
+                  </InputGroup>
                   <div className="table-responsive">
-                    <table className="table align-middle mb-0">
-                      <thead style={{ background: '#f4f6fa' }}>
-                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
-                          <th>Case Number</th>
-                          <th>Title</th>
-                          <th><i className="bi bi-people"></i> Parties</th>
+                    <Table hover className="align-middle mb-0">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Case Name</th>
                           <th>Type</th>
+                          <th>Filing Date</th>
+                          <th>Client</th>
+                          <th>Lawyer</th>
+                          <th>Prosecutor</th>
+                          <th>Judge</th>
                           <th>Status</th>
+                          <th>Final Decision</th>
+                          <th>Case History</th>
                           <th>Actions</th>
+                          <th>Verify</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cases.map((c, i) => (
-                          <tr key={i}>
-                            <td>{c.number}</td>
-                            <td>{c.title}</td>
-                            <td>{c.parties}</td>
-                            <td>{c.type}</td>
-                            <td>
-                              {c.status === 'Open' && <span className="badge bg-primary">Open</span>}
-                              {c.status === 'Pending' && <span className="badge bg-warning text-dark">Pending</span>}
-                              {c.status === 'Closed' && <span className="badge bg-secondary">Closed</span>}
-                              {c.status === 'Appealed' && <span className="badge bg-danger">Appealed</span>}
-                            </td>
-                            <td>
-                              <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleCaseView(c)}><Eye size={16} /></Button>
-                              <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleCaseEdit(c)}><Edit2 size={16} /></Button>
-                              <Button variant="outline-danger" size="sm" className="p-1 lh-1" onClick={() => handleCaseDelete(c)}><Trash2 size={16} /></Button>
-                            </td>
+                        {filteredCases.length === 0 ? (
+                          <tr>
+                            <td colSpan={11} className="text-center text-muted py-4">No cases found.</td>
                           </tr>
-                        ))}
+                        ) : (
+                          filteredCases.map((case_) => (
+                            <tr key={case_.id}>
+                            <td>{case_.title}</td>
+                            <td>{case_.caseType}</td>
+                            <td>{case_.filingDate}</td>
+                              <td>{case_.clientName}</td>
+                              <td>{case_.lawyerName}</td>
+                              <td>{case_.prosecutor}</td>
+                              <td>{case_.judgeName}</td>
+                              <td>
+                                <Badge bg={
+                                  case_.status === 'Open' ? 'success' :
+                                  case_.status === 'Pending' ? 'warning' :
+                                  'secondary'
+                                } className="px-3 py-1 fs-6">
+                                  {case_.status}
+                                </Badge>
+                            </td>
+                            <td>
+                                {case_.status === 'Closed' ? (
+                                  <Button variant="link" size="sm" onClick={() => { setSelectedCase(case_); setShowFinalDecisionModal(true); }}>View</Button>
+                                ) : (
+                                  <span className="text-muted">-</span>
+                                )}
+                              </td>
+                              <td>
+                                <Button variant="link" size="sm" onClick={() => { setViewingCase(case_); setShowCaseViewModal(true); }}>View</Button>
+                              </td>
+                              <td>
+                                <div className="d-flex gap-2">
+                                  <Button 
+                                    variant="outline-primary" 
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingCase(case_);
+                                      setCaseForm(case_);
+                                      setShowCaseModal(true);
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button 
+                                    variant="outline-danger" 
+                                    size="sm"
+                                    onClick={() => handleDeleteCase(case_.id)}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                              <td>
+                                {!case_.judgeName && (
+                                  <Button variant="success" size="sm" onClick={() => {
+                                    setEditingCase(case_);
+                                    setCaseForm(case_);
+                                    setShowCaseModal(true);
+                                  }}>Verify</Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
-                    </table>
-                          </div>
-                  <div className="text-muted mt-3">A list of registered cases.</div>
+                    </Table>
+                  </div>
+                </Card.Body>
+              </Card>
+            )}
+            {selectedPage === 'hearingSchedule' && (
+              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+                <Card.Body style={{ padding: 0 }}>
+                  <RegistrarHearingSchedule />
                 </Card.Body>
               </Card>
             )}
@@ -712,58 +1274,575 @@ const RegistrarDashboard = () => {
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <div>
                       <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-balance-scale me-2"></i>Appeals Monitoring</h2>
-                      <div className="text-muted mb-2">View and monitor appeals heard by the court.</div>
+                      <div className="text-muted mb-2">View and monitor appeals heard by the court. Update decision and status as needed.</div>
                     </div>
-                    <Button variant="primary" className="d-flex align-items-center gap-2 px-4 py-2" style={{ fontWeight: 500, fontSize: '1.1rem', borderRadius: 8 }} onClick={() => { setEditingAppeal(null); setAppealForm({ appealNumber: '', originalCaseId: '', appellant: '', respondent: '', dateFiled: '', status: '' }); setShowAppealModal(true); }}>
-                      <i className="bi bi-plus-lg"></i> Add New Appeal
-                    </Button>
                   </div>
                   <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
                     <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
-                    <Form.Control placeholder="Search appeals by number, case ID, or parties..." value={searchAppeal} onChange={e => setSearchAppeal(e.target.value)} />
+                    <Form.Control placeholder="Search appeals by lawyer, case, client, or status..." value={searchAppeal} onChange={e => setSearchAppeal(e.target.value)} />
                   </InputGroup>
                   <div className="table-responsive">
                     <table className="table align-middle mb-0">
                       <thead style={{ background: '#f4f6fa' }}>
                         <tr style={{ color: '#22304a', fontWeight: 600 }}>
-                          <th>Appeal Number</th>
-                          <th>Original Case ID</th>
-                          <th>Appellant</th>
-                          <th>Respondent</th>
-                          <th><i className="bi bi-calendar"></i> Date Filed</th>
+                          <th>Lawyer</th>
+                          <th>Case Name</th>
+                          <th>Client</th>
+                          <th>Appeal Date</th>
                           <th>Status</th>
-                          <th>Actions</th>
+                          <th>Decision Date</th>
+                          <th>Decision</th>
+                          <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredAppeals.map((appeal, i) => (
                           <tr key={appeal.id}>
-                            <td>{appeal.appealNumber}</td>
-                            <td>{appeal.originalCaseId}</td>
-                            <td>{appeal.appellant}</td>
-                            <td>{appeal.respondent}</td>
-                            <td>{appeal.dateFiled}</td>
+                            <td>{appeal.lawyerName}</td>
+                            <td>{appeal.caseName}</td>
+                            <td>{appeal.clientName}</td>
+                            <td>{appeal.appealDate}</td>
+                            <td>{appeal.status}</td>
+                            <td>{appeal.decisionDate || '-'}</td>
+                            <td>{appeal.decision || '-'}</td>
                             <td>
-                              {appeal.status === 'Under Review' && <span className="badge bg-dark">Under Review</span>}
-                              {appeal.status === 'Hearing Scheduled' && <span className="badge bg-light text-dark border">Hearing Scheduled</span>}
-                              {appeal.status === 'Decided' && <span className="badge bg-secondary">Decided</span>}
-                            </td>
-                            <td>
-                              <Button variant="light" size="sm" className="me-2 border" onClick={() => handleViewAppeal(appeal)}><i className="bi bi-eye"></i></Button>
-                              <Button variant="light" size="sm" className="border" onClick={() => handleEditAppeal(appeal)}><i className="bi bi-pencil"></i></Button>
+                              <Button variant="outline-primary" size="sm" onClick={() => handleOpenDecisionModal(appeal)}>
+                                Update Decision
+                              </Button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="text-muted mt-3">A list of appeals filed with the court.</div>
                 </Card.Body>
               </Card>
             )}
+            {selectedPage === 'evidence' && (
+              <Card className="mb-4">
+                <Card.Header>
+                  <h5 className="mb-0">Evidence</h5>
+                  <p className="text-muted mb-0">View evidence submitted by lawyers/clients</p>
+                </Card.Header>
+                <Card.Body>
+                  <InputGroup className="mb-3">
+                    <InputGroup.Text>
+                      <Search size={18} />
+                    </InputGroup.Text>
+                    <Form.Control
+                      placeholder="Search by case, type, description, file, or lawyer..."
+                      value={searchEvidence}
+                      onChange={(e) => setSearchEvidence(e.target.value)}
+                    />
+                  </InputGroup>
+                  <div className="table-responsive">
+                    <table className="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>Evidence Type</th>
+                          <th>Description</th>
+                          <th>Submission Date</th>
+                          <th>Case Name</th>
+                          <th>Lawyer Name</th>
+                          <th>File</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredEvidence.map(e => (
+                          <tr key={e.id}>
+                            <td>{e.evidenceType}</td>
+                            <td>{e.description}</td>
+                            <td>{e.submissionDate}</td>
+                            <td>{e.caseName}</td>
+                            <td>{e.lawyerName}</td>
+                            <td>{e.file ? <a href={`#/${e.file}`} download>{e.file}</a> : '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card.Body>
+              </Card>
+            )}
+            {selectedPage === 'witnesses' && (
+              <Card className="mb-4">
+                <Card.Header>
+                  <h5 className="mb-0">Witnesses</h5>
+                  <p className="text-muted mb-0">View witnesses submitted by lawyers/clients</p>
+                </Card.Header>
+                <Card.Body>
+                  <InputGroup className="mb-3">
+                    <InputGroup.Text>
+                      <Search size={18} />
+                    </InputGroup.Text>
+                    <Form.Control
+                      placeholder="Search by name, case, contact, or lawyer..."
+                      value={searchWitness}
+                      onChange={(e) => setSearchWitness(e.target.value)}
+                    />
+                  </InputGroup>
+                  <div className="table-responsive">
+                    <table className="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Case Name</th>
+                          <th>Contact</th>
+                          <th>Status</th>
+                          <th>Lawyer Name</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredWitnesses.map(w => (
+                          <tr key={w.id}>
+                            <td>{w.name}</td>
+                            <td>{w.caseName}</td>
+                            <td>{w.contact}</td>
+                            <td>
+                              <Badge bg={w.status === 'Testified' ? 'success' : w.status === 'Scheduled' ? 'info' : 'warning'}>
+                                {w.status}
+                              </Badge>
+                            </td>
+                            <td>{w.lawyerName}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card.Body>
+              </Card>
+            )}
+            {selectedPage === 'payments' && (
+              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-credit-card me-2"></i>Payment Management</h2>
+                      <div className="text-muted mb-2">View and manage court payments from lawyers and clients.</div>
+                    </div>
+                    <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
+                      setEditingPayment(null);
+                      setPaymentForm({
+                        caseName: '',
+                        lawyerName: '',
+                        clientName: '',
+                        paymentType: '',
+                        purpose: '',
+                        amount: '',
+                        mode: '',
+                        paymentDate: '',
+                        status: 'Pending'
+                      });
+                      setShowPaymentModal(true);
+                    }}>
+                      <Plus size={20} /> Add Payment
+                    </Button>
+                  </div>
+                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+                    <Form.Control 
+                      placeholder="Search payments by case, lawyer, client, or status..." 
+                      value={searchPayment} 
+                      onChange={e => setSearchPayment(e.target.value)} 
+                    />
+                  </InputGroup>
+                  <div className="table-responsive">
+                    <table className="table align-middle mb-0">
+                      <thead style={{ background: '#f4f6fa' }}>
+                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
+                          <th>Case Name</th>
+                          <th>Lawyer</th>
+                          <th>Client</th>
+                          <th>Payment Type</th>
+                          <th>Purpose</th>
+                          <th>Amount</th>
+                          <th>Mode</th>
+                          <th>Payment Date</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {courtPayments
+                          .filter(p => 
+                            p.caseName.toLowerCase().includes(searchPayment.toLowerCase()) ||
+                            p.lawyerName.toLowerCase().includes(searchPayment.toLowerCase()) ||
+                            p.clientName.toLowerCase().includes(searchPayment.toLowerCase()) ||
+                            p.status.toLowerCase().includes(searchPayment.toLowerCase())
+                          )
+                          .map((payment) => (
+                            <tr key={payment.id}>
+                              <td>{payment.caseName}</td>
+                              <td>{payment.lawyerName}</td>
+                              <td>{payment.clientName}</td>
+                              <td>{payment.paymentType}</td>
+                              <td>{payment.purpose}</td>
+                              <td>${payment.amount}</td>
+                              <td>{payment.mode}</td>
+                              <td>{payment.paymentDate}</td>
+                              <td>
+                                <Badge bg={payment.status === 'Paid' ? 'success' : 'warning'}>
+                                  {payment.status}
+                              </Badge>
+                            </td>
+                            <td>
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                className="me-2"
+                                  onClick={() => {
+                                    setEditingPayment(payment);
+                                    setPaymentForm(payment);
+                                    setShowPaymentModal(true);
+                                  }}
+                                >
+                                  Edit
+                              </Button>
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                  onClick={() => {
+                                    setConfirm({
+                                      show: true,
+                                      type: 'deletePayment',
+                                      payload: payment
+                                    });
+                                  }}
+                                >
+                                  Delete
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card.Body>
+              </Card>
+            )}
+            {selectedPage === 'prosecutors' && (
+              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-person-badge me-2"></i>Prosecutor Management</h2>
+                      <div className="text-muted mb-2">Manage court prosecutors and their case assignments.</div>
                             </div>
-                          </div>
-                        </div>
+                    <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
+                      setEditingProsecutor(null);
+                      setProsecutorForm({ name: '', experience: '', status: 'Active', assignedCases: [] });
+                      setShowProsecutorModal(true);
+                    }}>
+                      <Plus size={20} /> Add Prosecutor
+                    </Button>
+                  </div>
+                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+                    <Form.Control 
+                      placeholder="Search prosecutors..." 
+                      value={searchProsecutor} 
+                      onChange={e => setSearchProsecutor(e.target.value)} 
+                    />
+                  </InputGroup>
+                  <div className="table-responsive">
+                    <table className="table align-middle mb-0">
+                      <thead style={{ background: '#f4f6fa' }}>
+                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
+                          <th>Name</th>
+                          <th>Experience</th>
+                          <th>Status</th>
+                          <th>Assigned Cases</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {courtProsecutors
+                          .filter(p => p.name.toLowerCase().includes(searchProsecutor.toLowerCase()))
+                          .map((prosecutor) => (
+                            <tr key={prosecutor.id}>
+                              <td>{prosecutor.name}</td>
+                              <td>{prosecutor.experience} years</td>
+                              <td>
+                                <Badge bg={prosecutor.status === 'Active' ? 'success' : 'warning'}>
+                                  {prosecutor.status}
+                                </Badge>
+                              </td>
+                              <td>
+                                {prosecutor.assignedCases.length > 0 ? (
+                                  <ul className="list-unstyled mb-0">
+                                    {prosecutor.assignedCases.map((caseName, idx) => (
+                                      <li key={idx}>{caseName}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <span className="text-muted">No cases assigned</span>
+                                )}
+                              </td>
+                              <td>
+                                <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditProsecutor(prosecutor)}>
+                                  Edit
+                                </Button>
+                                <Button variant="outline-danger" size="sm" onClick={() => handleDeleteProsecutor(prosecutor)}>
+                                  Remove
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card.Body>
+              </Card>
+            )}
+            {selectedPage === 'judges' && (
+              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-person-badge me-2"></i>Judge Management</h2>
+                      <div className="text-muted mb-2">Manage court judges and their case assignments.</div>
+                    </div>
+                    <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
+                      setEditingJudge(null);
+                      setJudgeForm({ name: '', position: '', experience: '', appointmentDate: '', specialization: '', assignedCases: [] });
+                      setShowJudgeModal(true);
+                    }}>
+                      <Plus size={20} /> Add Judge
+                    </Button>
+                  </div>
+                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+                    <Form.Control 
+                      placeholder="Search judges..." 
+                      value={searchJudge} 
+                      onChange={e => setSearchJudge(e.target.value)} 
+                    />
+                  </InputGroup>
+                  <div className="table-responsive">
+                    <table className="table align-middle mb-0">
+                      <thead style={{ background: '#f4f6fa' }}>
+                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
+                          <th>Name</th>
+                          <th>Position</th>
+                          <th>Experience (years)</th>
+                          <th>Appointment Date</th>
+                          <th>Specialization</th>
+                          <th>Assigned Cases</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {courtJudges
+                          .filter(j => j.name.toLowerCase().includes(searchJudge.toLowerCase()))
+                          .map((judge) => (
+                            <tr key={judge.id}>
+                              <td>{judge.name}</td>
+                              <td>{judge.position}</td>
+                              <td>{judge.experience} years</td>
+                              <td>{judge.appointmentDate}</td>
+                              <td>{judge.specialization}</td>
+                              <td>
+                                {judge.assignedCases.length > 0 ? (
+                                  <ul className="list-unstyled mb-0">
+                                    {judge.assignedCases.map((caseName, idx) => (
+                                      <li key={idx}>{caseName}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <span className="text-muted">No cases assigned</span>
+                                )}
+                              </td>
+                              <td>
+                                <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditJudge(judge)}>
+                                  Edit
+                                </Button>
+                                <Button variant="outline-danger" size="sm" onClick={() => handleDeleteJudge(judge)}>
+                                  Remove
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card.Body>
+              </Card>
+            )}
+            {selectedPage === 'remands' && (
+              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-gavel me-2"></i>Remand Management</h2>
+                      <div className="text-muted mb-2">Manage remands for cases in your court.</div>
+                    </div>
+                    <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
+                      setEditingRemand(null);
+                      setRemandForm({ caseName: '', lawyerName: '', clientName: '', remandType: '', remandDate: '', remandReason: '', status: '', duration: '' });
+                      setShowRemandModal(true);
+                    }}>
+                      <Plus size={20} /> Add Remand
+                    </Button>
+                  </div>
+                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+                    <Form.Control 
+                      placeholder="Search remands..." 
+                      // Add search logic if needed
+                    />
+                  </InputGroup>
+                  <div className="table-responsive">
+                    <table className="table align-middle mb-0">
+                      <thead style={{ background: '#f4f6fa' }}>
+                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
+                          <th>Case Name</th>
+                          <th>Lawyer</th>
+                          <th>Client</th>
+                          <th>Remand Type</th>
+                          <th>Remand Date</th>
+                          <th>Reason</th>
+                          <th>Status</th>
+                          <th>Duration</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {remands.map((remand) => (
+                          <tr key={remand.id}>
+                            <td>{remand.caseName}</td>
+                            <td>{remand.lawyerName}</td>
+                            <td>{remand.clientName}</td>
+                            <td>{remand.remandType}</td>
+                            <td>{remand.remandDate}</td>
+                            <td>{remand.remandReason}</td>
+                            <td>{remand.status}</td>
+                            <td>{remand.duration}</td>
+                            <td>
+                              <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditRemand(remand)}>
+                                Edit
+                              </Button>
+                              <Button variant="outline-danger" size="sm" onClick={() => handleDeleteRemand(remand)}>
+                                Remove
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card.Body>
+              </Card>
+            )}
+            {selectedPage === 'caseHistory' && (
+              <>
+                <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+                  <Card.Body>
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <div>
+                        <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-clock-history me-2"></i>Manage Case History</h2>
+                        <div className="text-muted mb-2">View, add, and manage all case history actions. This data will be shown in other dashboards as well.</div>
+                      </div>
+                      <Button variant="primary" onClick={() => { setEditingCaseHistory(null); setCaseHistoryForm({ caseName: '', judgeName: '', clientName: '', lawyerName: '', remarks: '', actionDate: '', actionTaken: '', status: '' }); setShowCaseHistoryModal(true); }}>
+                        Add Entry
+                      </Button>
+                    </div>
+                    <div className="table-responsive">
+                      <table className="table align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th>Case Name</th>
+                            <th>Judge Name</th>
+                            <th>Client Name</th>
+                            <th>Lawyer Name</th>
+                            <th>Remarks</th>
+                            <th>Action Date</th>
+                            <th>Action Taken</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {caseHistory.length === 0 ? (
+                            <tr><td colSpan={9} className="text-center text-muted py-4">No case history entries found.</td></tr>
+                          ) : (
+                            caseHistory.map(entry => (
+                              <tr key={entry.id}>
+                                <td>{entry.caseName}</td>
+                                <td>{entry.judgeName}</td>
+                                <td>{entry.clientName}</td>
+                                <td>{entry.lawyerName}</td>
+                                <td>{entry.remarks}</td>
+                                <td>{entry.actionDate}</td>
+                                <td>{entry.actionTaken}</td>
+                                <td>{entry.status}</td>
+                                <td>
+                                  <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditCaseHistory(entry)}>Edit</Button>
+                                  <Button variant="outline-danger" size="sm" onClick={() => handleDeleteCaseHistory(entry.id)}>Delete</Button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card.Body>
+                </Card>
+                <Modal show={showCaseHistoryModal} onHide={() => { setShowCaseHistoryModal(false); setEditingCaseHistory(null); }} centered>
+                  <Modal.Header closeButton>
+                    <Modal.Title>{editingCaseHistory ? 'Edit Case History Entry' : 'Add Case History Entry'}</Modal.Title>
+                  </Modal.Header>
+                  <Form onSubmit={handleCaseHistorySubmit}>
+                    <Modal.Body>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Case Name</Form.Label>
+                        <Form.Control type="text" name="caseName" value={caseHistoryForm.caseName} onChange={handleCaseHistoryFormChange} required />
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Judge Name</Form.Label>
+                        <Form.Control type="text" name="judgeName" value={caseHistoryForm.judgeName} onChange={handleCaseHistoryFormChange} required />
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Client Name</Form.Label>
+                        <Form.Control type="text" name="clientName" value={caseHistoryForm.clientName} onChange={handleCaseHistoryFormChange} />
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Lawyer Name</Form.Label>
+                        <Form.Control type="text" name="lawyerName" value={caseHistoryForm.lawyerName} onChange={handleCaseHistoryFormChange} />
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Remarks</Form.Label>
+                        <Form.Control as="textarea" name="remarks" value={caseHistoryForm.remarks} onChange={handleCaseHistoryFormChange} />
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Action Date</Form.Label>
+                        <Form.Control type="date" name="actionDate" value={caseHistoryForm.actionDate} onChange={handleCaseHistoryFormChange} required />
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Action Taken</Form.Label>
+                        <Form.Control type="text" name="actionTaken" value={caseHistoryForm.actionTaken} onChange={handleCaseHistoryFormChange} required />
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Status</Form.Label>
+                        <Form.Select name="status" value={caseHistoryForm.status} onChange={handleCaseHistoryFormChange} required>
+                          <option value="">Select status</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Adjourned">Adjourned</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </Form.Select>
+                      </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="secondary" onClick={() => { setShowCaseHistoryModal(false); setEditingCaseHistory(null); }}>Cancel</Button>
+                      <Button variant="primary" type="submit">{editingCaseHistory ? 'Save Changes' : 'Add Entry'}</Button>
+                    </Modal.Footer>
+                  </Form>
+                </Modal>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Toasts */}
       <Toast
@@ -780,7 +1859,7 @@ const RegistrarDashboard = () => {
       {/* Register/Edit Court Modal */}
       <Modal show={showCourtModal} onHide={() => { setShowCourtModal(false); setEditingCourt(null); }} centered>
         <Modal.Header closeButton>
-          <Modal.Title>{editingCourt ? 'Edit Court' : 'Register New Court'}</Modal.Title>
+          <Modal.Title>{editingCourt ? 'Edit Court' : 'Edit Court'}</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleCourtSubmit}>
           <Modal.Body>
@@ -793,16 +1872,6 @@ const RegistrarDashboard = () => {
                 onChange={handleCourtFormChange}
                 required
                 autoFocus
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Court ID</Form.Label>
-              <Form.Control
-                type="text"
-                name="courtId"
-                value={courtForm.courtId}
-                onChange={handleCourtFormChange}
-                required
               />
             </Form.Group>
             <Form.Group className="mb-3">
@@ -832,7 +1901,7 @@ const RegistrarDashboard = () => {
             </Button>
             <Button variant="primary" type="submit" disabled={loading}>
               {loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}
-              {editingCourt ? 'Save Changes' : 'Register Court'}
+              {editingCourt ? 'Save Changes' : 'Save Changes'}
             </Button>
           </Modal.Footer>
         </Form>
@@ -850,16 +1919,8 @@ const RegistrarDashboard = () => {
               <Form.Control type="text" name="number" value={roomForm.number} onChange={handleRoomFormChange} required autoFocus />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Name</Form.Label>
-              <Form.Control type="text" name="name" value={roomForm.name} onChange={handleRoomFormChange} required />
-            </Form.Group>
-            <Form.Group className="mb-3">
               <Form.Label>Capacity</Form.Label>
               <Form.Control type="number" name="capacity" value={roomForm.capacity} onChange={handleRoomFormChange} required />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Type</Form.Label>
-              <Form.Control type="text" name="type" value={roomForm.type} onChange={handleRoomFormChange} required />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Status</Form.Label>
@@ -940,6 +2001,9 @@ const RegistrarDashboard = () => {
           {confirm.type === 'deleteRoom' && (
             <span>Are you sure you want to delete the room <b>{confirm.payload?.name}</b>?</span>
           )}
+          {confirm.type === 'deletePayment' && (
+            <span>Are you sure you want to delete the payment record for <b>{confirm.payload?.caseName}</b>?</span>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setConfirm({ show: false, type: '', payload: null })}>
@@ -948,6 +2012,7 @@ const RegistrarDashboard = () => {
           <Button variant="danger" onClick={() => {
             if (confirm.type === 'deleteCourt') confirmDeleteCourt();
             if (confirm.type === 'deleteRoom') confirmDeleteRoom();
+            if (confirm.type === 'deletePayment') confirmDeletePayment();
           }}>
             Delete
           </Button>
@@ -968,43 +2033,109 @@ const RegistrarDashboard = () => {
       {/* Case Add/Edit Modal */}
       <Modal show={showCaseModal} onHide={() => { setShowCaseModal(false); setEditingCase(null); }} centered>
         <Modal.Header closeButton>
-          <Modal.Title>{editingCase ? 'Edit Case' : 'Add New Case'}</Modal.Title>
+          <Modal.Title>{editingCase ? 'Verify New Case' : 'Verify New Case'}</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleCaseSubmit}>
           <Modal.Body>
             <Form.Group className="mb-3">
-              <Form.Label>Case Number</Form.Label>
-              <Form.Control type="text" name="number" value={caseForm.number} onChange={handleCaseFormChange} required autoFocus />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Title</Form.Label>
-              <Form.Control type="text" name="title" value={caseForm.title} onChange={handleCaseFormChange} required />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Parties</Form.Label>
-              <Form.Control type="text" name="parties" value={caseForm.parties} onChange={handleCaseFormChange} required />
+              <Form.Label>Case Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={caseForm.title}
+                readOnly
+                disabled
+              />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Type</Form.Label>
-              <Form.Control type="text" name="type" value={caseForm.type} onChange={handleCaseFormChange} required />
+              <Form.Select
+                value={caseForm.caseType}
+                readOnly
+                disabled
+              >
+                <option value="">Select type</option>
+                <option value="Criminal">Criminal</option>
+                <option value="Civil">Civil</option>
+                <option value="Family">Family</option>
+                <option value="Corporate">Corporate</option>
+              </Form.Select>
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Status</Form.Label>
-              <Form.Control type="text" name="status" value={caseForm.status} onChange={handleCaseFormChange} required />
+              <Form.Label>Filing Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={caseForm.filingDate}
+                readOnly
+                disabled
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Client Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={caseForm.clientName}
+                readOnly
+                disabled
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Lawyer Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={caseForm.lawyerName}
+                readOnly
+                disabled
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Prosecutor</Form.Label>
+              <Form.Select
+                value={caseForm.prosecutor}
+                readOnly
+                disabled
+              >
+                <option value="">Select prosecutor</option>
+                {courtProsecutors.map(prosecutor => (
+                  <option key={prosecutor.id} value={prosecutor.name}>
+                    {prosecutor.name}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Judge</Form.Label>
+              <Form.Select
+                value={caseForm.judgeName}
+                onChange={e => setCaseForm({ ...caseForm, judgeName: e.target.value })}
+                required
+              >
+                <option value="">Select judge</option>
+                {courtJudges.map(judge => (
+                  <option key={judge.id} value={judge.name}>{judge.name}</option>
+                ))}
+              </Form.Select>
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => { setShowCaseModal(false); setEditingCase(null); }}>Cancel</Button>
-            <Button variant="primary" type="submit" disabled={loading}>{loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}{editingCase ? 'Save Changes' : 'Add Case'}</Button>
+            <Button variant="primary" type="submit" disabled={loading}>{loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}{editingCase ? 'Verify' : 'Verify'}</Button>
           </Modal.Footer>
         </Form>
       </Modal>
 
       {/* Case View Modal */}
       <Modal show={showCaseViewModal} onHide={() => setShowCaseViewModal(false)} centered>
-        <Modal.Header closeButton><Modal.Title>Case Details</Modal.Title></Modal.Header>
+        <Modal.Header closeButton>
+          <Modal.Title>Case History</Modal.Title>
+        </Modal.Header>
         <Modal.Body>
-          {viewingCase && <div><b>Case Number:</b> {viewingCase.number}<br /><b>Title:</b> {viewingCase.title}<br /><b>Parties:</b> {viewingCase.parties}<br /><b>Type:</b> {viewingCase.type}<br /><b>Status:</b> {viewingCase.status}</div>}
+          {viewingCase && viewingCase.history && (
+            <ul>
+              {viewingCase.history.map((h, idx) => (
+                <li key={idx}><strong>{h.date}:</strong> {h.event}</li>
+              ))}
+            </ul>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowCaseViewModal(false)}>Close</Button>
@@ -1152,6 +2283,603 @@ const RegistrarDashboard = () => {
             </Col>
           </Row>
         </Modal.Body>
+      </Modal>
+
+      {/* Final Decision Modal */}
+      <Modal show={showFinalDecisionModal} onHide={() => setShowFinalDecisionModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Final Decision</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedCase && (
+            <>
+              <div><strong>Decision Date:</strong> {selectedCase.decisionDate || '-'}</div>
+              <div><strong>Summary:</strong> {selectedCase.decisionSummary || '-'}</div>
+              <div><strong>Verdict:</strong> {selectedCase.verdict || '-'}</div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowFinalDecisionModal(false)}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Evidence Add/Edit Modal */}
+      <Modal show={showEvidenceModal} onHide={() => { setShowEvidenceModal(false); setEditingEvidence(null); }} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingEvidence ? 'Edit Evidence' : 'Add Evidence'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleEvidenceSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Case</Form.Label>
+              <Form.Select name="caseTitle" value={evidenceForm.caseTitle} onChange={handleEvidenceFormChange} required>
+                <option value="">Select case</option>
+                {cases.map(c => (
+                  <option key={c.id} value={c.title}>{c.title}</option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Type</Form.Label>
+              <Form.Select name="type" value={evidenceForm.type} onChange={handleEvidenceFormChange} required>
+                <option value="">Select type</option>
+                <option value="Document">Document</option>
+                <option value="Physical">Physical</option>
+                <option value="Digital">Digital</option>
+                <option value="Testimony">Testimony</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Description</Form.Label>
+              <Form.Control type="text" name="description" value={evidenceForm.description} onChange={handleEvidenceFormChange} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Date Added</Form.Label>
+              <Form.Control type="date" name="dateAdded" value={evidenceForm.dateAdded} onChange={handleEvidenceFormChange} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Select name="status" value={evidenceForm.status} onChange={handleEvidenceFormChange} required>
+                <option value="Pending">Pending</option>
+                <option value="Verified">Verified</option>
+                <option value="Rejected">Rejected</option>
+              </Form.Select>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => { setShowEvidenceModal(false); setEditingEvidence(null); }}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={loading}>{loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}{editingEvidence ? 'Save Changes' : 'Add Evidence'}</Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Evidence View Modal */}
+      <Modal show={showEvidenceViewModal} onHide={() => setShowEvidenceViewModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Evidence Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {viewingEvidence && (
+            <div>
+              <div className="mb-3">
+                <h6>Case</h6>
+                <p>{viewingEvidence.caseTitle}</p>
+              </div>
+              <div className="mb-3">
+                <h6>Type</h6>
+                <p>{viewingEvidence.type}</p>
+              </div>
+              <div className="mb-3">
+                <h6>Description</h6>
+                <p>{viewingEvidence.description}</p>
+              </div>
+              <div className="mb-3">
+                <h6>Date Added</h6>
+                <p>{viewingEvidence.dateAdded}</p>
+              </div>
+              <div>
+                <h6>Status</h6>
+                <p>{viewingEvidence.status}</p>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEvidenceViewModal(false)}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Witness Add/Edit Modal */}
+      <Modal show={showWitnessModal} onHide={() => { setShowWitnessModal(false); setEditingWitness(null); }} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingWitness ? 'Edit Witness' : 'Add Witness'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleWitnessSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Name</Form.Label>
+              <Form.Control type="text" name="name" value={witnessForm.name} onChange={handleWitnessFormChange} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Case</Form.Label>
+              <Form.Select name="caseTitle" value={witnessForm.caseTitle} onChange={handleWitnessFormChange} required>
+                <option value="">Select case</option>
+                {cases.map(c => (
+                  <option key={c.id} value={c.title}>{c.title}</option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Contact</Form.Label>
+              <Form.Control type="text" name="contact" value={witnessForm.contact} onChange={handleWitnessFormChange} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Select name="status" value={witnessForm.status} onChange={handleWitnessFormChange} required>
+                <option value="Pending">Pending</option>
+                <option value="Scheduled">Scheduled</option>
+                <option value="Testified">Testified</option>
+              </Form.Select>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => { setShowWitnessModal(false); setEditingWitness(null); }}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={loading}>{loading ? <Spinner animation="border" size="sm" className="me-2" /> : null}{editingWitness ? 'Save Changes' : 'Add Witness'}</Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Witness View Modal */}
+      <Modal show={showWitnessViewModal} onHide={() => setShowWitnessViewModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Witness Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {viewingWitness && (
+            <div>
+              <div className="mb-3">
+                <h6>Name</h6>
+                <p>{viewingWitness.name}</p>
+              </div>
+              <div className="mb-3">
+                <h6>Case</h6>
+                <p>{viewingWitness.caseTitle}</p>
+              </div>
+              <div className="mb-3">
+                <h6>Contact</h6>
+                <p>{viewingWitness.contact}</p>
+              </div>
+              <div>
+                <h6>Status</h6>
+                <p>{viewingWitness.status}</p>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowWitnessViewModal(false)}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Appeal Decision Modal */}
+      <Modal show={showDecisionModal} onHide={handleCloseDecisionModal} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Update Appeal Decision</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleDecisionSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Select name="status" value={decisionForm.status} onChange={handleDecisionFormChange} required>
+                <option value="">Select status</option>
+                <option value="Under Review">Under Review</option>
+                <option value="Hearing Scheduled">Hearing Scheduled</option>
+                <option value="Decided">Decided</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Decision Date</Form.Label>
+              <Form.Control type="date" name="decisionDate" value={decisionForm.decisionDate} onChange={handleDecisionFormChange} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Decision</Form.Label>
+              <Form.Control as="textarea" name="decision" value={decisionForm.decision} onChange={handleDecisionFormChange} required />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseDecisionModal}>Cancel</Button>
+            <Button variant="primary" type="submit">Save</Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Payment Add/Edit Modal */}
+      <Modal show={showPaymentModal} onHide={() => setShowPaymentModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingPayment ? 'Edit Payment' : 'Add New Payment'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={(e) => {
+          e.preventDefault();
+          if (editingPayment) {
+            setCourtPayments(prev => prev.map(p => p.id === editingPayment.id ? paymentForm : p));
+          } else {
+            setCourtPayments(prev => [...prev, { ...paymentForm, id: Date.now() }]);
+          }
+          setShowPaymentModal(false);
+        }}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Case Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={paymentForm.caseName}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, caseName: e.target.value }))}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Lawyer Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={paymentForm.lawyerName}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, lawyerName: e.target.value }))}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Client Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={paymentForm.clientName}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, clientName: e.target.value }))}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Payment Type</Form.Label>
+              <Form.Control
+                type="text"
+                value={paymentForm.paymentType}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, paymentType: e.target.value }))}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Purpose</Form.Label>
+              <Form.Control
+                type="text"
+                value={paymentForm.purpose}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, purpose: e.target.value }))}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Amount</Form.Label>
+              <Form.Control
+                type="number"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+                required
+                min="0"
+                step="0.01"
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Payment Mode</Form.Label>
+              <Form.Control
+                type="text"
+                value={paymentForm.mode}
+                disabled
+                readOnly
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Payment Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={paymentForm.paymentDate}
+                disabled
+                readOnly
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Select
+                value={paymentForm.status}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, status: e.target.value }))}
+                required
+              >
+                <option value="Pending">Pending</option>
+                <option value="Paid">Paid</option>
+              </Form.Select>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
+            <Button variant="primary" type="submit">{editingPayment ? 'Update' : 'Add'} Payment</Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Payment Delete Confirmation Modal */}
+      <Modal show={confirm.show} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Delete</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete this payment record?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setConfirm({ show: false, type: '', payload: null })}>Cancel</Button>
+          <Button variant="danger" onClick={() => {
+            setCourtPayments(prev => prev.filter(p => p.id !== confirm.payload.id));
+            setConfirm({ show: false, type: '', payload: null });
+          }}>Delete</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Prosecutor Add/Edit Modal */}
+      <Modal show={showProsecutorModal} onHide={() => setShowProsecutorModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingProsecutor ? 'Edit Prosecutor' : 'Add New Prosecutor'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleProsecutorSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Name</Form.Label>
+              <Form.Control
+                type="text"
+                name="name"
+                value={prosecutorForm.name}
+                onChange={handleProsecutorFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Experience (years)</Form.Label>
+              <Form.Control
+                type="number"
+                name="experience"
+                value={prosecutorForm.experience}
+                onChange={handleProsecutorFormChange}
+                required
+                min="0"
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Select
+                name="status"
+                value={prosecutorForm.status}
+                onChange={handleProsecutorFormChange}
+                required
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Assign Cases</Form.Label>
+              <Form.Select
+                multiple
+                name="assignedCases"
+                value={prosecutorForm.assignedCases}
+                onChange={e => {
+                  const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+                  setProsecutorForm({ ...prosecutorForm, assignedCases: selectedOptions });
+                }}
+              >
+                {cases.map(case_ => (
+                  <option key={case_.id} value={case_.title}>
+                    {case_.title}
+                  </option>
+                ))}
+              </Form.Select>
+              <Form.Text className="text-muted">
+                Hold Ctrl/Cmd to select multiple cases
+              </Form.Text>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowProsecutorModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              {editingProsecutor ? 'Save Changes' : 'Add Prosecutor'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Judge Add/Edit Modal */}
+      <Modal show={showJudgeModal} onHide={() => setShowJudgeModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingJudge ? 'Edit Judge' : 'Add New Judge'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleJudgeSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Name</Form.Label>
+              <Form.Control
+                type="text"
+                name="name"
+                value={judgeForm.name}
+                onChange={handleJudgeFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Position</Form.Label>
+              <Form.Control
+                type="text"
+                name="position"
+                value={judgeForm.position}
+                onChange={handleJudgeFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Experience (years)</Form.Label>
+              <Form.Control
+                type="number"
+                name="experience"
+                value={judgeForm.experience}
+                onChange={handleJudgeFormChange}
+                required
+                min="0"
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Appointment Date</Form.Label>
+              <Form.Control
+                type="date"
+                name="appointmentDate"
+                value={judgeForm.appointmentDate}
+                onChange={handleJudgeFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Specialization</Form.Label>
+              <Form.Control
+                type="text"
+                name="specialization"
+                value={judgeForm.specialization}
+                onChange={handleJudgeFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Assign Cases</Form.Label>
+              <Form.Select
+                multiple
+                name="assignedCases"
+                value={judgeForm.assignedCases}
+                onChange={e => {
+                  const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+                  setJudgeForm({ ...judgeForm, assignedCases: selectedOptions });
+                }}
+              >
+                {courtCases.map(case_ => (
+                  <option key={case_.id} value={case_.title}>
+                    {case_.title}
+                  </option>
+                ))}
+              </Form.Select>
+              <Form.Text className="text-muted">
+                Hold Ctrl/Cmd to select multiple cases
+              </Form.Text>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowJudgeModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              {editingJudge ? 'Save Changes' : 'Add Judge'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Remand Add/Edit Modal */}
+      <Modal show={showRemandModal} onHide={() => setShowRemandModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingRemand ? 'Edit Remand' : 'Add New Remand'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleRemandSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Case Name</Form.Label>
+              <Form.Control
+                type="text"
+                name="caseName"
+                value={remandForm.caseName}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Lawyer Name</Form.Label>
+              <Form.Control
+                type="text"
+                name="lawyerName"
+                value={remandForm.lawyerName}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Client Name</Form.Label>
+              <Form.Control
+                type="text"
+                name="clientName"
+                value={remandForm.clientName}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Remand Type</Form.Label>
+              <Form.Control
+                type="text"
+                name="remandType"
+                value={remandForm.remandType}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Remand Date</Form.Label>
+              <Form.Control
+                type="date"
+                name="remandDate"
+                value={remandForm.remandDate}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Remand Reason</Form.Label>
+              <Form.Control
+                type="text"
+                name="remandReason"
+                value={remandForm.remandReason}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Status</Form.Label>
+              <Form.Control
+                type="text"
+                name="status"
+                value={remandForm.status}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Duration</Form.Label>
+              <Form.Control
+                type="text"
+                name="duration"
+                value={remandForm.duration}
+                onChange={handleRemandFormChange}
+                required
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowRemandModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              {editingRemand ? 'Save Changes' : 'Add Remand'}
+            </Button>
+          </Modal.Footer>
+        </Form>
       </Modal>
     </div>
   );

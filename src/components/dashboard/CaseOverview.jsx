@@ -8,9 +8,12 @@ import {
   Table,
   Card,
   Badge,
+  Modal,
+  Button,
 } from 'react-bootstrap';
 import { Search, FunnelFill } from 'react-bootstrap-icons';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 const getCases = () => [
   {
@@ -23,6 +26,9 @@ const getCases = () => [
     caseType: 'Civil Litigation',
     court: 'Superior Court, Anytown',
     priority: 'High',
+    decisionDate: '',
+    decisionSummary: '',
+    verdict: '',
   },
   {
     id: 'case2',
@@ -34,6 +40,9 @@ const getCases = () => [
     caseType: 'Intellectual Property',
     court: 'Federal District Court',
     priority: 'Medium',
+    decisionDate: '',
+    decisionSummary: '',
+    verdict: '',
   },
   {
     id: 'case3',
@@ -45,6 +54,9 @@ const getCases = () => [
     caseType: 'Criminal Defense',
     court: 'Criminal Court, Div A',
     priority: 'Critical',
+    decisionDate: '',
+    decisionSummary: '',
+    verdict: '',
   },
   {
     id: 'case4',
@@ -56,6 +68,9 @@ const getCases = () => [
     caseType: 'Estate Planning',
     court: 'N/A',
     priority: 'Low',
+    decisionDate: '',
+    decisionSummary: '',
+    verdict: '',
   },
   {
     id: 'case5',
@@ -67,6 +82,9 @@ const getCases = () => [
     caseType: 'Patent Litigation',
     court: 'USPTO PTAB',
     priority: 'High',
+    decisionDate: '',
+    decisionSummary: '',
+    verdict: '',
   },
   {
     id: 'case6',
@@ -78,7 +96,15 @@ const getCases = () => [
     caseType: 'Real Estate',
     court: 'N/A',
     priority: 'Medium',
+    decisionDate: '',
+    decisionSummary: '',
+    verdict: '',
   },
+];
+
+const mockCases = [
+  { id: 'case1', title: 'Mock Case 1', description: 'Fallback description', casetype: 'Civil', filingdate: '2024-06-01', status: 'Open', decisionDate: '', decisionSummary: '', verdict: '' },
+  { id: 'case2', title: 'Mock Case 2', description: 'Another fallback', casetype: 'Criminal', filingdate: '2024-06-02', status: 'Closed', decisionDate: '', decisionSummary: '', verdict: '' },
 ];
 
 const CaseOverview = () => {
@@ -89,16 +115,26 @@ const CaseOverview = () => {
   const [sortKey, setSortKey] = useState('lastActivity');
   const [sortDirection, setSortDirection] = useState('desc');
   const [activityDates, setActivityDates] = useState({});
+  const [fallbackWarning, setFallbackWarning] = useState("");
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [decisionData, setDecisionData] = useState({});
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchedCases = getCases();
-    setCases(fetchedCases);
-    const dates = {};
-    fetchedCases.forEach((c) => {
-      dates[c.id] = format(c.lastActivity, 'MM/dd/yyyy');
-    });
-    setActivityDates(dates);
-    setLoading(false);
+    try {
+      const fetchedCases = getCases();
+      setCases(fetchedCases);
+      const dates = {};
+      fetchedCases.forEach((c) => {
+        dates[c.id] = c.filingdate || format(new Date(), 'MM/dd/yyyy');
+      });
+      setActivityDates(dates);
+      setLoading(false);
+    } catch (err) {
+      setFallbackWarning("Backend unavailable, showing mock case data.");
+      setCases(mockCases);
+      setLoading(false);
+    }
   }, []);
 
   const handleSort = (key) => {
@@ -201,43 +237,67 @@ const CaseOverview = () => {
             </Col>
           </Row>
 
+          {fallbackWarning && (
+            <div className="alert alert-warning text-center">{fallbackWarning}</div>
+          )}
+
           <div className="table-responsive">
             <Table bordered hover striped>
               <thead className="table-light">
                 <tr>
-                  <th onClick={() => handleSort('caseName')}>Case Name</th>
-                  <th onClick={() => handleSort('client')}>Client</th>
-                  <th onClick={() => handleSort('opposingCounsel')}>Opposing Counsel</th>
+                  <th onClick={() => handleSort('title')}>Title</th>
+                  <th onClick={() => handleSort('description')}>Description</th>
+                  <th onClick={() => handleSort('casetype')}>Case Type</th>
+                  <th onClick={() => handleSort('filingdate')}>Filing Date</th>
                   <th onClick={() => handleSort('status')}>Status</th>
-                  <th onClick={() => handleSort('caseType')}>Case Type</th>
-                  <th onClick={() => handleSort('lastActivity')}>Last Activity</th>
+                  <th>Final Decision</th>
+                  <th>Case History</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted">
+                    <td colSpan={7} className="text-center text-muted">
                       Loading cases...
                     </td>
                   </tr>
                 ) : filteredAndSortedCases.length > 0 ? (
                   filteredAndSortedCases.map((c) => (
                     <tr key={c.id}>
-                      <td>{c.caseName}</td>
-                      <td>{c.client}</td>
-                      <td>{c.opposingCounsel}</td>
+                      <td>{c.title}</td>
+                      <td>{c.description}</td>
+                      <td>{c.casetype}</td>
+                      <td>{c.filingdate}</td>
                       <td>
                         <Badge bg={getStatusBadgeVariant(c.status)}>
                           {c.status}
                         </Badge>
                       </td>
-                      <td>{c.caseType}</td>
-                      <td>{activityDates[c.id]}</td>
+                      <td>
+                        {c.status && c.status.toLowerCase().includes('closed') ? (
+                          <button className="btn btn-link p-0" onClick={() => { setDecisionData(c); setShowDecisionModal(true); }}>
+                            View Final Decision
+                          </button>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
+                      <td>
+                        <button className="btn btn-link p-0" onClick={() => navigate(`/case-history/${c.id}`)}>
+                          View History
+                        </button>
+                      </td>
+                      <td>
+                        <button className="btn btn-sm btn-primary me-1">Edit</button>
+                        <button className="btn btn-sm btn-info me-1">View</button>
+                        <button className="btn btn-sm btn-secondary">Download</button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted">
+                    <td colSpan={7} className="text-center text-muted">
                       No cases found matching your criteria.
                     </td>
                   </tr>
@@ -247,6 +307,19 @@ const CaseOverview = () => {
           </div>
         </Card.Body>
       </Card>
+      <Modal show={showDecisionModal} onHide={() => setShowDecisionModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Final Decision</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div><strong>Decision Date:</strong> {decisionData.decisionDate || '-'}</div>
+          <div><strong>Summary:</strong> {decisionData.decisionSummary || '-'}</div>
+          <div><strong>Verdict:</strong> {decisionData.verdict || '-'}</div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDecisionModal(false)}>Close</Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

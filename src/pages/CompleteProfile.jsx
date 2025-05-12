@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Form, Button, Alert, Spinner } from 'react-bootstrap';
 import '../styles/Signup.css';
 import legalLoginImage from '../assets/legal-login.png';
+import CourtRegistrationForm from '../components/CourtRegistrationForm';
 
 const roleFieldMap = {
   'Client': [
@@ -11,7 +12,7 @@ const roleFieldMap = {
   'Case Participant': [
     { name: 'address', label: 'Address', type: 'text', placeholder: '123 Main St, City', required: true }
   ],
-  'Court Registrar': [
+  'CourtRegistrar': [
     { name: 'position', label: 'Position', type: 'text', placeholder: 'Registrar Position', required: true }
   ],
   'Lawyer': [
@@ -95,23 +96,20 @@ const CompleteProfile = () => {
     if (!validateStep()) return;
     setIsLoading(true);
     try {
-      // TODO: Call your complete profile API here
-      // Example using fetch:
-      // const response = await fetch('/api/complete-profile', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(form)
-      // });
-      // const result = await response.json();
-      // if (response.ok) {
-      //   // Success: maybe navigate to dashboard
-      // } else {
-      //   setError(result.message || 'Profile completion failed.');
-      //   setIsLoading(false);
-      //   return;
-      // }
       await new Promise(resolve => setTimeout(resolve, 1200));
-      navigate('/dashboard');
+      if (role === 'CourtRegistrar') {
+        navigate('/register-court');
+      } else if (role === 'Lawyer') {
+        navigate('/Dashboard');
+      } else if (role === 'Client') {
+        navigate('/ClientDashboard');
+      } else if (role === 'Judge') {
+        navigate('/JudgeDashboard');
+      } else if (role === 'Admin') {
+        navigate('/AdminDashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError('Profile completion failed. Please try again.');
       setIsLoading(false);
@@ -120,16 +118,23 @@ const CompleteProfile = () => {
 
   return (
     <div className="signup-bg" style={{ minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto' }}>
-      <div className="signup-form-card" style={{ maxWidth: 420, width: '100%', padding: '2.2em 1.2em 1.5em 1.2em', margin: '2em 0' }}>
-        <img src={legalLoginImage} alt="LegalEase Logo" className="signup-logo" />
-        <h2>Complete Your Profile</h2>
+      <div className="signup-form-card" style={{ maxWidth: 370, width: '100%', padding: '1.2em 0.8em 1em 0.8em', margin: '2em 0' }}>
+        <h2 className="gradient-text" style={{
+          background: 'linear-gradient(90deg, #22304a 0%, #1ec6b6 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          textFillColor: 'transparent',
+          marginBottom: '0.5rem',
+          fontSize: '1.5rem',
+        }}>Complete Your Profile</h2>
         <p className="text-muted">Just one more step to get started!</p>
         <div className="mb-3 w-100 d-flex justify-content-center align-items-center gap-2">
           {steps.map((s, idx) => (
-            <div key={s.label} style={{width: 18, height: 18, borderRadius: '50%', background: idx === step ? '#2563eb' : '#e0e7ef', border: '2px solid #2563eb', display: 'inline-block'}}></div>
+            <div key={s.label} style={{width: 18, height: 18, borderRadius: '50%', background: idx === step ? '#1ec6b6' : '#e0e7ef', border: '2px solid #1ec6b6', display: 'inline-block', transition: 'all 0.3s ease'}}></div>
           ))}
         </div>
-        <h5 className="mb-3">{steps[step].label}</h5>
+        <h5 className="mb-3" style={{ color: '#22304a', fontWeight: 700 }}>{steps[step].label}</h5>
         {error && (
           <Alert variant="danger" onClose={() => setError(null)} dismissible>
             {error}
@@ -151,14 +156,54 @@ const CompleteProfile = () => {
               />
             </Form.Group>
           ))}
-          <div className="d-flex justify-content-between align-items-center mt-3">
+          <div className="d-flex gap-3 mt-3" style={{ justifyContent: 'stretch' }}>
             {step > 0 && (
-              <Button variant="secondary" onClick={handleBack} disabled={isLoading} type="button">Back</Button>
+              <Button
+                variant="outline-secondary"
+                onClick={handleBack}
+                className="flex-grow-1"
+                style={{
+                  borderRadius: '0.75rem',
+                  padding: '0.75rem',
+                  fontWeight: '600',
+                  borderColor: '#1ec6b6',
+                  color: '#1ec6b6',
+                  minWidth: 0
+                }}
+                disabled={isLoading}
+                type="button"
+              >Back</Button>
             )}
             {step < steps.length - 1 ? (
-              <Button variant="primary" type="submit" className="ms-auto" disabled={isLoading}>Next</Button>
+              <Button
+                type="submit"
+                className="flex-grow-1"
+                disabled={isLoading}
+                style={{
+                  background: 'linear-gradient(90deg, #22304a 0%, #1ec6b6 100%)',
+                  border: 'none',
+                  borderRadius: '0.75rem',
+                  padding: '0.75rem',
+                  fontWeight: '600',
+                  boxShadow: '0 4px 12px rgba(30,198,182,0.15)',
+                  minWidth: 0
+                }}
+              >Next</Button>
             ) : (
-              <Button variant="primary" type="submit" className="ms-auto" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="flex-grow-1"
+                disabled={isLoading}
+                style={{
+                  background: 'linear-gradient(90deg, #22304a 0%, #1ec6b6 100%)',
+                  border: 'none',
+                  borderRadius: '0.75rem',
+                  padding: '0.75rem',
+                  fontWeight: '600',
+                  boxShadow: '0 4px 12px rgba(30,198,182,0.15)',
+                  minWidth: 0
+                }}
+              >
                 {isLoading ? (
                   <><Spinner animation="border" size="sm" className="me-2" /> Completing...</>
                 ) : (
@@ -168,6 +213,26 @@ const CompleteProfile = () => {
             )}
           </div>
         </Form>
+        <style>{`
+          .signup-form-card .form-group,
+          .signup-form-card .mb-4,
+          .signup-form-card .mb-3,
+          .signup-form-card .form-label,
+          .signup-form-card .form-control,
+          .signup-form-card .btn,
+          .signup-form-card .alert,
+          .signup-form-card .small {
+            margin-bottom: 0.65rem !important;
+          }
+          .signup-form-card .form-group:last-child,
+          .signup-form-card .mb-4:last-child,
+          .signup-form-card .mb-3:last-child {
+            margin-bottom: 0 !important;
+          }
+          .signup-form-card {
+            padding-top: 1.2em !important;
+          }
+        `}</style>
       </div>
     </div>
   );
