@@ -7,7 +7,7 @@ from flask_session import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from LCMS.backend.logdecorator import log_action
+from logdecorator import log_action
 from config import Config
 from models import Base, Cases, Court, Payments, Users, Admin, Lawyer, Judge, Prosecutor, Courtregistrar, Caseparticipant,t_courtaccess,t_prosecutorassign
 
@@ -256,7 +256,7 @@ def update_lawyer_profile():
 
 @app.route('/api/registrarprofile', methods=['PUT'])
 @log_action(action_type="Update",entity_type="Court Registrar")
-def update_lawyer_profile():
+def update_registrar_profile():
     db = SessionLocal()
     user_id = current_user.userid
 
@@ -281,7 +281,7 @@ def update_lawyer_profile():
     
 @app.route('/api/clientprofile', methods=['PUT'])
 @log_action(action_type="Update",entity_type="Client")
-def update_lawyer_profile():
+def update_client_profile():
     db = SessionLocal()
     user_id = current_user.userid
 
@@ -307,7 +307,7 @@ def update_lawyer_profile():
     
 @app.route('/api/judgeprofile', methods=['PUT'])
 @log_action(action_type="Update",entity_type="Judge")
-def update_lawyer_profile():
+def update_judge_profile():
     db = SessionLocal()
     user_id = current_user.userid
 
@@ -545,7 +545,7 @@ def create_payment():
         
 @app.route('/api/clientprofile', methods=['GET'])
 @login_required
-def get_registrar_profile():
+def get_client_profile():
     db = SessionLocal()
     try:
         user_id = current_user.userid
@@ -573,7 +573,7 @@ def get_registrar_profile():
 
 @app.route('/api/judgeprofile', methods=['GET'])
 @login_required
-def get_registrar_profile():
+def get_judge_profile():
     db = SessionLocal()
     try:
         user_id = current_user.userid

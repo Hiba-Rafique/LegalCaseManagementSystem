@@ -1,13 +1,13 @@
 from functools import wraps
 from datetime import datetime
 from flask_login import current_user
-from LCMS.backend.app import SessionLocal
-from LCMS.backend.models import Logtable
+from models import Logtable
 
 def log_action(action_type, entity_type=None):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            from app import SessionLocal 
             db = SessionLocal()
             status = "SUCCESS"
             description = ""
