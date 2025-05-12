@@ -7,12 +7,18 @@ def log_action(action_type, entity_type=None):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            from app import SessionLocal 
+            # Import SessionLocal here to avoid circular import issues
+            from app import SessionLocal
             db = SessionLocal()
             status = "SUCCESS"
             description = ""
+            
+            # Initialize entity_type if it's not passed
+            if entity_type is None:
+                entity_type = "UnknownEntity"
+
             try:
-                # If entity_type is not provided, set it dynamically based on user role
+                # If entity_type is still None, set it dynamically based on user role
                 if not entity_type and current_user.is_authenticated:
                     role_to_entity = {
                         "courtregistrar": "CourtRegistrar",
@@ -25,7 +31,7 @@ def log_action(action_type, entity_type=None):
 
                 # Run the original function
                 response = func(*args, **kwargs)
-                
+
                 # Capture custom description if returned
                 if isinstance(response, tuple) and isinstance(response[0], dict):
                     description = response[0].get("message", "")
@@ -60,7 +66,7 @@ def log_action(action_type, entity_type=None):
 
                     # Log the action dynamically
                     log = Logtable(
-                        adminid=current_user.userid,
+                        adminid=current_user.userid,  # Ensure this is the correct field for user ID
                         actiontype=action_type,
                         entitytype=entity_type,
                         description=description or action_description,
@@ -73,6 +79,6 @@ def log_action(action_type, entity_type=None):
                     db.rollback()
                     print("Failed to log action:", log_error)
                 finally:
-                    db.close()
+                    db.close()  # Ensure the session is always closed
         return wrapper
     return decorator

@@ -7,7 +7,7 @@ from flask_session import Session
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from logdecorator import log_action
+# from logdecorator import log_action
 from config import Config
 from models import Base, Cases, Court, Payments, Users, Admin, Lawyer, Judge, Prosecutor, Courtregistrar, Caseparticipant,t_courtaccess,t_prosecutorassign
 
@@ -27,7 +27,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 
 @login_manager.user_loader
-@log_action(action_type="LOAD_USER", entity_type="User")
+# @log_action(action_type="LOAD_USER", entity_type="User")
 def load_user(user_id):
     db = SessionLocal()
     user = db.query(Users).get(int(user_id))
@@ -39,7 +39,7 @@ def serve():
     return app.send_static_file("index.html")
 
 @app.route("/api/signup", methods=["POST"])
-@log_action(action_type="Signup",entity_type="User")
+# @log_action(action_type="Signup",entity_type="User")
 def signup():
     data = request.get_json()
     firstname = data.get("firstname")
@@ -106,7 +106,7 @@ def signup():
     }), 201
 
 @app.route('/api/complete-profile', methods=['POST'])
-@log_action(action_type="Profile Completed", entity_type="")
+# @log_action(action_type="Profile Completed", entity_type="")
 def complete_profile():
     db = SessionLocal()
     try:
@@ -155,7 +155,7 @@ def complete_profile():
         db.close()
 
 @app.route("/api/login", methods=["POST"])
-@log_action(action_type="Login",entity_type="User")
+# @log_action(action_type="Login",entity_type="User")
 def login():
     data = request.get_json()
     email = data.get("email")
@@ -195,7 +195,7 @@ def dashboard():
     })
 
 @app.route("/api/logout", methods=["POST"])
-@log_action(action_type="Logout",entity_type="User")
+# @log_action(action_type="Logout",entity_type="User")
 @login_required
 def logout():
     logout_user()
@@ -227,7 +227,7 @@ def get_lawyer_profile():
     })
 
 @app.route('/api/lawyerprofile', methods=['PUT'])
-@log_action(action_type="Update",entity_type="Lawyer")
+# @log_action(action_type="Update",entity_type="Lawyer")
 def update_lawyer_profile():
     db = SessionLocal()
     user_id = current_user.userid
@@ -255,7 +255,7 @@ def update_lawyer_profile():
     
 
 @app.route('/api/registrarprofile', methods=['PUT'])
-@log_action(action_type="Update",entity_type="Court Registrar")
+# @log_action(action_type="Update",entity_type="Court Registrar")
 def update_registrar_profile():
     db = SessionLocal()
     user_id = current_user.userid
@@ -280,7 +280,7 @@ def update_registrar_profile():
         return jsonify(success=False, message=str(e)), 500
     
 @app.route('/api/clientprofile', methods=['PUT'])
-@log_action(action_type="Update",entity_type="Client")
+# @log_action(action_type="Update",entity_type="Client")
 def update_client_profile():
     db = SessionLocal()
     user_id = current_user.userid
@@ -306,7 +306,7 @@ def update_client_profile():
         return jsonify(success=False, message=str(e)), 500
     
 @app.route('/api/judgeprofile', methods=['PUT'])
-@log_action(action_type="Update",entity_type="Judge")
+# @log_action(action_type="Update",entity_type="Judge")
 def update_judge_profile():
     db = SessionLocal()
     user_id = current_user.userid
@@ -335,7 +335,7 @@ def update_judge_profile():
     
 
 @app.route('/api/court', methods=['POST'])
-@log_action(action_type="Create",entity_type="Court")
+# @log_action(action_type="Create",entity_type="Court")
 @login_required
 def add_court():
     db = SessionLocal()
@@ -476,7 +476,7 @@ def get_lawyer_payments():
         db.close()
         
 @app.route('/api/payments', methods=['POST'])
-@log_action(action_type="Create",entity_type="Payments")
+# @log_action(action_type="Create",entity_type="Payments")
 @login_required
 def create_payment():
     db = SessionLocal()
@@ -604,7 +604,7 @@ def get_judge_profile():
 
 
 @app.route("/api/prosecutor", methods=['POST'])
-@log_action(action_type="Create",entity_type="Prosecutor")
+# @log_action(action_type="Create",entity_type="Prosecutor")
 @login_required
 def create_prosecutor():
     db = SessionLocal()
