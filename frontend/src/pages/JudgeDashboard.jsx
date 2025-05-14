@@ -290,6 +290,92 @@ function JudgeDashboard() {
     fetchJudgeData();
   }, []);
 
+  const [loadingCases, setLoadingCases] = useState(true);
+  const [caseError, setCaseError] = useState(null); 
+
+  useEffect(() => {
+  const fetchCases = async () => {
+    try {
+      const response = await fetch('/api/cases', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch cases');
+
+      const result = await response.json();
+      if (result.cases) {
+        setCases(result.cases.map(c => ({
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          caseType: c.caseType,
+          filingDate: c.filingDate,
+          status: c.status,
+          lawyers: c.lawyers,
+          clientName: c.clientName || '',
+          courtName: c.courtName,
+          nextHearing: c.nextHearing || 'N/A',
+          remarks: c.remarks || '',
+          finalDecision: c.finalDecision,
+          history: c.history,
+          evidence: c.evidence,
+          witnesses: c.witnesses
+        })));
+      } else {
+        setCaseError('No cases found.');
+      }
+    } catch (err) {
+      console.error('Error fetching cases:', err);
+      setCaseError('Error fetching cases.');
+    } finally {
+      setLoadingCases(false);
+    }
+  };
+
+  fetchCases();
+}, []);
+
+useEffect(() => {
+  const fetchHearings = async () => {
+    try {
+      const response = await fetch('/api/hearings', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch hearings');
+      }
+
+      const result = await response.json();
+      if (result.hearings) {
+        setHearings(result.hearings.map(h => ({
+          id: h.hearingid,
+          caseTitle: h.casename || 'N/A',
+          courtName: h.courtroomid || 'N/A',
+          date: h.hearingdate,
+          time: h.hearingtime,
+          remarks: h.remarks || ''
+        })));
+      }
+    } catch (err) {
+      console.error('Error fetching hearings:', err);
+    }
+  };
+
+  fetchHearings();
+}, []);
+
+
   const handleProfileClick = () => {
     navigate('/judge-profile');
   };
@@ -483,69 +569,54 @@ function JudgeDashboard() {
                   </Col>
                 </Row>
                 <Table responsive hover className="align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Case Title</th>
-                      <th>Court</th>
-                      <th>Lawyers</th>
-                      <th>Filing Date</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                    {filteredCases.map(case_ => (
-                      <tr key={case_.id}>
-                        <td>
-                          <div className="fw-bold">{case_.title}</div>
-                          <small className="text-muted">{case_.description}</small>
-                        </td>
-                        <td>{case_.courtName}</td>
-                        <td>{case_.lawyers}</td>
-                        <td>{case_.filingDate}</td>
-                        <td>
-                          <Badge bg={case_.status === 'Open' ? 'success' : 'warning'}>
-                            {case_.status}
-                          </Badge>
-                        </td>
-                        <td>
-                          <div className="d-flex gap-2">
-                            <Button
-                              variant="outline-primary"
-                              size="sm"
-                              onClick={() => handleViewHistory(case_)}
-                            >
-                              History
-                            </Button>
-                            <Button
-                              variant="outline-info"
-                              size="sm"
-                              onClick={() => handleViewEvidence(case_)}
-                            >
-                              Evidence
-                            </Button>
-                            <Button
-                              variant="outline-secondary"
-                              size="sm"
-                              onClick={() => handleViewWitnesses(case_)}
-                            >
-                              Witnesses
-                            </Button>
-                            {case_.status !== 'Completed' && (
-                              <Button
-                                variant="outline-success"
-                                size="sm"
-                                onClick={() => handleAnnounceDecision(case_)}
-                              >
-                                Decision
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                  </tr>
-                ))}
-              </tbody>
-                </Table>
+  <thead className="table-light">
+    <tr>
+      <th>Case Title</th>
+      <th>Court</th>
+      <th>Lawyers</th>
+      <th>Filing Date</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {filteredCases.map(case_ => (
+      <tr key={case_.id}>
+        <td>
+          <div className="fw-bold">{case_.title}</div>
+          <small className="text-muted">{case_.description}</small>
+        </td>
+        <td>{case_.courtName}</td>
+        <td>{case_.lawyers}</td>
+        <td>{case_.filingDate}</td>
+        <td>
+          <Badge bg={case_.status === 'Open' ? 'success' : 'warning'}>
+            {case_.status}
+          </Badge>
+        </td>
+        <td>
+          <div className="d-flex gap-2">
+            <Button variant="outline-primary" size="sm" onClick={() => handleViewHistory(case_)}>
+              History
+            </Button>
+            <Button variant="outline-info" size="sm" onClick={() => handleViewEvidence(case_)}>
+              Evidence
+            </Button>
+            <Button variant="outline-secondary" size="sm" onClick={() => handleViewWitnesses(case_)}>
+              Witnesses
+            </Button>
+            {case_.status !== 'Completed' && (
+              <Button variant="outline-success" size="sm" onClick={() => handleAnnounceDecision(case_)}>
+                Decision
+              </Button>
+            )}
+          </div>
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</Table>
+
               </Card.Body>
             </Card>
         )}

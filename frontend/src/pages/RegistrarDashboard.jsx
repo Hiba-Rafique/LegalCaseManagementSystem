@@ -100,30 +100,6 @@ const [roomError, setRoomError] = useState('');
   ]);
   const [searchProsecutor, setSearchProsecutor] = useState('');
   const [courtPayments, setCourtPayments] = useState([
-    {
-      id: 1,
-      caseName: 'State v. Smith',
-      lawyerName: 'Adeel Khan',
-      clientName: 'John Smith',
-      paymentType: 'Court Fee',
-      purpose: 'Filing',
-      amount: 1000,
-      mode: 'Cash',
-      paymentDate: '2024-06-01',
-      status: 'Paid'
-    },
-    {
-      id: 2,
-      caseName: 'People v. Doe',
-      lawyerName: 'Sara Malik',
-      clientName: 'Jane Doe',
-      paymentType: 'Case Fee',
-      purpose: 'Consultation',
-      amount: 2000,
-      mode: 'Bank Transfer',
-      paymentDate: '2024-06-02',
-      status: 'Pending'
-    }
   ]);
   const [searchPayment, setSearchPayment] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -139,6 +115,66 @@ const [roomError, setRoomError] = useState('');
     paymentDate: '',
     status: 'Pending'
   });
+  const [loadingPayments, setLoadingPayments] = useState(true);  
+useEffect(() => {
+  const fetchPayments = async () => {
+    try {
+      setLoadingPayments(true);
+      const response = await fetch('/api/payments', {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch payments');
+
+      const data = await response.json();
+
+      const mappedPayments = (data.payments || []).map((p, index) => ({
+        id: index + 1, // Assign a fallback ID if not provided
+        caseName: p.casename || '',
+        lawyerName: p.lawyername || '-', // fallback if not returned
+        clientName: p.clientname || '-', // fallback if not returned
+        paymentType: p.paymenttype || 'Court Fee', // default type
+        purpose: p.purpose || '',
+        amount: p.balance || 0,
+        mode: p.mode || '',
+        paymentDate: p.paymentdate || '',
+        status: p.status || 'Paid'
+      }));
+
+      setCourtPayments(mappedPayments);
+    } catch (err) {
+      console.error('Error fetching payments:', err.message);
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  fetchPayments();
+}, []);
+
+
+  const handleSubmitPayment = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentForm),
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create payment');
+      }
+      const data = await response.json();
+      setCourtPayments([...courtPayments, data.payment]);  // Add the new payment to the state
+      setPaymentForm({ caseName: '', lawyerName: '', clientName: '', paymentType: '', purpose: '', amount: '', mode: '', paymentDate: '', status: 'Pending' });
+      setShowPaymentModal(false);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
 
   
@@ -184,44 +220,86 @@ const [roomError, setRoomError] = useState('');
   const [appealForm, setAppealForm] = useState({ appealNumber: '', originalCaseId: '', appellant: '', respondent: '', dateFiled: '', status: '' });
   const [searchAppeal, setSearchAppeal] = useState('');
   // Appeals state: update to include lawyerName, caseName, clientName, appealDate, status, decisionDate, decision
-  const [appeals, setAppeals] = useState([
-    {
-      id: 1,
-      lawyerName: 'Adeel Khan',
-      caseName: 'State v. Smith',
-      clientName: 'John Smith',
-      appealDate: '2024-07-01',
-      status: 'Under Review',
-      decisionDate: '',
-      decision: '',
-    },
-    {
-      id: 2,
-      lawyerName: 'Sara Malik',
-      caseName: 'People v. Doe',
-      clientName: 'Jane Doe',
-      appealDate: '2024-07-15',
-      status: 'Hearing Scheduled',
-      decisionDate: '',
-      decision: '',
-    },
-    {
-      id: 3,
-      lawyerName: 'Bilal Ahmed',
-      caseName: 'Acme Corp v. Beta',
-      clientName: 'Acme Corp',
-      appealDate: '2023-11-05',
-      status: 'Decided',
-      decisionDate: '2024-03-20',
-      decision: 'Appeal granted in favor of appellant.',
-    }
-  ]);
+  const [appeals, setAppeals] = useState([]);
+const getAppeals = async () => {
+  try {
+    const response = await fetch('/api/appeals', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const data = await response.json();
+
+    // Map backend fields to frontend fields
+    const mappedAppeals = data.appeals.map(appeal => ({
+      appealDate: appeal.appealdate,   // Mapping appealdate to appealDate
+      status: appeal.appealstatus,     // Mapping appealstatus to status
+      caseName: appeal.casename,       // Mapping casename to caseName
+      courtName: appeal.courtname,     // Mapping courtname to courtName
+      decision: appeal.decision,       // Keeping decision as is
+      decisionDate: appeal.decisiondate, // Mapping decisiondate to decisionDate
+    }));
+
+    setAppeals(mappedAppeals);
+  } catch (err) {
+    console.error('Failed to fetch appeals:', err.message);
+  }
+};
+
+const fetchProsecutors = async () => {
+  try {
+    const res = await fetch('/api/prosecutors');
+    const data = await res.json();
+    return data.prosecutors || [];
+  } catch (err) {
+    console.error('Failed to fetch prosecutors:', err);
+    return [];
+  }
+};
+
+const addProsecutor = async (prosecutor) => {
+  try {
+    const res = await fetch('/api/prosecutors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prosecutor),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to add prosecutor:', err);
+  }
+};
+
+const updateProsecutor = async (id, prosecutor) => {
+  try {
+    const res = await fetch(`/api/prosecutors/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prosecutor),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to update prosecutor:', err);
+  }
+};
+
+const deleteProsecutor = async (id) => {
+  try {
+    await fetch(`/api/prosecutors/${id}`, { method: 'DELETE' });
+  } catch (err) {
+    console.error('Failed to delete prosecutor:', err);
+  }
+};
+
   const filteredAppeals = appeals.filter(a =>
-    a.lawyerName.toLowerCase().includes(searchAppeal.toLowerCase()) ||
-    a.caseName.toLowerCase().includes(searchAppeal.toLowerCase()) ||
-    a.clientName.toLowerCase().includes(searchAppeal.toLowerCase()) ||
-    a.status.toLowerCase().includes(searchAppeal.toLowerCase())
-  );
+  a.lawyerName?.toLowerCase().includes(searchAppeal.toLowerCase()) ||
+  a.caseName?.toLowerCase().includes(searchAppeal.toLowerCase()) ||
+  a.clientName?.toLowerCase().includes(searchAppeal.toLowerCase()) ||
+  a.status?.toLowerCase().includes(searchAppeal.toLowerCase())
+);
 
   // Add state for modals and forms for rooms and cases
   const [showRoomViewModal, setShowRoomViewModal] = useState(false);
@@ -382,33 +460,60 @@ const fetchCourtRooms = (courtId) => {
   const [showFinalDecisionModal, setShowFinalDecisionModal] = useState(false);
   const [selectedCase, setSelectedCase] = useState(null);
 
-  // Add state variables for evidence and witnesses
-  const [evidence, setEvidence] = useState([
-    { id: 1, evidenceType: 'Document', description: 'Contract agreement', submissionDate: '2024-01-20', caseName: 'State v. Smith', lawyerName: 'Adeel Khan', file: 'contract.pdf' },
-    { id: 2, evidenceType: 'Physical', description: 'Weapon', submissionDate: '2024-02-01', caseName: 'People v. Doe', lawyerName: 'Sara Malik', file: 'weapon.jpg' },
-  ]);
-  const [searchEvidence, setSearchEvidence] = useState('');
-  const filteredEvidence = evidence.filter(e =>
-    e.caseName.toLowerCase().includes(searchEvidence.toLowerCase()) ||
-    e.evidenceType.toLowerCase().includes(searchEvidence.toLowerCase()) ||
-    e.description.toLowerCase().includes(searchEvidence.toLowerCase()) ||
-    e.lawyerName.toLowerCase().includes(searchEvidence.toLowerCase()) ||
-    (e.file && e.file.toLowerCase().includes(searchEvidence.toLowerCase()))
-  );
+ const [evidence, setEvidence] = useState([]);
+const [searchEvidence, setSearchEvidence] = useState('');
+const filteredEvidence = evidence.filter(e =>
+  e.caseName.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+  e.evidenceType.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+  e.description.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+  e.lawyerName.toLowerCase().includes(searchEvidence.toLowerCase()) ||
+  (e.file && e.file.toLowerCase().includes(searchEvidence.toLowerCase()))
+);
 
-  const [witnesses, setWitnesses] = useState([
-    { id: 1, name: 'John Smith', caseName: 'State v. Smith', contact: 'john@email.com', status: 'Scheduled', lawyerName: 'Adeel Khan', statement: 'Saw the accused at the scene.' },
-    { id: 2, name: 'Jane Doe', caseName: 'People v. Doe', contact: 'jane@email.com', status: 'Testified', lawyerName: 'Sara Malik', statement: 'Provided testimony in court.' },
-  ]);
-  const [searchWitness, setSearchWitness] = useState('');
-  const filteredWitnesses = witnesses.filter(w =>
-    w.name.toLowerCase().includes(searchWitness.toLowerCase()) ||
-    w.caseName.toLowerCase().includes(searchWitness.toLowerCase()) ||
-    w.contact.toLowerCase().includes(searchWitness.toLowerCase()) ||
-    w.lawyerName.toLowerCase().includes(searchWitness.toLowerCase()) ||
-    (w.statement && w.statement.toLowerCase().includes(searchWitness.toLowerCase()))
-  );
+const [witnesses, setWitnesses] = useState([]);
+const [searchWitness, setSearchWitness] = useState('');
+const filteredWitnesses = witnesses.filter(w =>
+  w.witness.firstname.toLowerCase().includes(searchWitness.toLowerCase()) ||
+  w.witness.lastname.toLowerCase().includes(searchWitness.toLowerCase()) ||
+  w.witness.caseName.toLowerCase().includes(searchWitness.toLowerCase()) ||
+  w.witness.contact.toLowerCase().includes(searchWitness.toLowerCase()) ||
+  (w.witness.statement && w.witness.statement.toLowerCase().includes(searchWitness.toLowerCase()))
+);
 
+
+useEffect(() => {
+  const fetchWitnesses = async () => {
+    try {
+      const response = await fetch('/api/witnesses/court'); 
+      if (!response.ok) throw new Error('Failed to fetch witnesses');
+      const data = await response.json();
+      setWitnesses(data); 
+      setFilteredWitnesses(data); /// Assuming the response contains the list of witnesses
+    } catch (error) {
+      console.error('Error fetching witnesses:', error);
+    }
+  };
+
+  fetchWitnesses();
+}, []);
+
+
+useEffect(() => {
+  const fetchEvidence = async () => {
+    try {
+      const response = await fetch('/api/evidence'); 
+      if (!response.ok) throw new Error('Failed to fetch evidence');
+      const data = await response.json();
+      setEvidence(data.evidence);
+    } catch (error) {
+      console.error('Error fetching evidence:', error);
+    }
+  };
+
+  fetchEvidence();
+}, []);
+
+  
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -483,6 +588,7 @@ const fetchCourtRooms = (courtId) => {
     setActiveTab('courtRooms');
   };
 
+  
   // COURT ROOMS CRUD
   const handleRoomFormChange = (e) => setRoomForm({ ...roomForm, [e.target.name]: e.target.value });
   const handleRoomSubmit = (e) => {
@@ -929,30 +1035,7 @@ const fetchCourtRooms = (courtId) => {
   };
 
   // Add state for case history
-  const [caseHistory, setCaseHistory] = useState([
-    {
-      id: 1,
-      caseName: 'State v. Smith',
-      judgeName: 'Judge Judy',
-      clientName: 'John Smith',
-      lawyerName: 'Adeel Khan',
-      remarks: 'Initial hearing completed',
-      actionDate: '2024-03-20',
-      actionTaken: 'Hearing',
-      status: 'Completed',
-    },
-    {
-      id: 2,
-      caseName: 'People v. Doe',
-      judgeName: 'Judge Dredd',
-      clientName: 'Jane Doe',
-      lawyerName: 'Sara Malik',
-      remarks: 'Adjourned due to absence',
-      actionDate: '2024-03-21',
-      actionTaken: 'Adjournment',
-      status: 'Pending',
-    },
-  ]);
+  const [caseHistory, setCaseHistory] = useState([]);
   const [showCaseHistoryModal, setShowCaseHistoryModal] = useState(false);
   const [editingCaseHistory, setEditingCaseHistory] = useState(null);
   const [caseHistoryForm, setCaseHistoryForm] = useState({
@@ -965,6 +1048,39 @@ const fetchCourtRooms = (courtId) => {
     actionTaken: '',
     status: '',
   });
+
+
+  const getCaseHistory = async (caseId) => {
+  try {
+    const response = await fetch(`/api/cases/${caseId}/history`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        // Include credentials if session-based auth (e.g., Flask-Login)
+        credentials: 'include',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('Case History:', data.history); // Use this in your component
+    return data.history;
+  } catch (error) {
+    console.error('Failed to fetch case history:', error.message);
+    return [];
+  }
+};
+
+const handleViewCase = async (caseId) => {
+  const selectedCase = cases.find((caseItem) => caseItem.id === caseId);
+  setViewingCase(selectedCase);
+  const history = await getCaseHistory(caseId);  // Await result
+  setCaseHistory(history);                       // Save to state
+  setShowCaseViewModal(true);
+};
 
   // Case History handlers
   const handleCaseHistoryFormChange = (e) => setCaseHistoryForm({ ...caseHistoryForm, [e.target.name]: e.target.value });
@@ -996,6 +1112,28 @@ const fetchCourtRooms = (courtId) => {
   const handleDeleteCaseHistory = (id) => {
     setCaseHistory(caseHistory.filter(h => h.id !== id));
   };
+
+  useEffect(() => {
+  const fetchHistoryForFirstCase = async () => {
+    if (selectedPage === 'caseHistory' && courtCases.length > 0) {
+      const firstCase = courtCases[0];
+      if (firstCase.caseid) {
+        const history = await getCaseHistory(firstCase.caseid);
+        setCaseHistory(history);
+      } else {
+        console.warn('First case has no caseid:', firstCase);
+      }
+    }
+  };
+
+  fetchHistoryForFirstCase();
+}, [selectedPage, courtCases]);
+
+useEffect(() => {
+  if (selectedPage === 'appeals') {
+    getAppeals();
+  }
+}, [selectedPage]);
 
   return (
     <div style={{ minHeight: '100vh', width: '100vw', height: '100vh', overflow: 'hidden', background: '#f4f6fa', display: 'flex', flexDirection: 'column' }}>
@@ -1327,6 +1465,8 @@ const fetchCourtRooms = (courtId) => {
                 </Card.Body>
               </Card>
             )}
+
+            
             {selectedPage === 'appeals' && (
               <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
                 <Card.Body>
@@ -1424,160 +1564,181 @@ const fetchCourtRooms = (courtId) => {
               </Card>
             )}
             {selectedPage === 'witnesses' && (
-              <Card className="mb-4">
-                <Card.Header>
-                  <h5 className="mb-0">Witnesses</h5>
-                  <p className="text-muted mb-0">View witnesses submitted by lawyers/clients</p>
-                </Card.Header>
-                <Card.Body>
-                  <InputGroup className="mb-3">
-                    <InputGroup.Text>
-                      <Search size={18} />
-                    </InputGroup.Text>
-                    <Form.Control
-                      placeholder="Search by name, case, contact, or lawyer..."
-                      value={searchWitness}
-                      onChange={(e) => setSearchWitness(e.target.value)}
-                    />
-                  </InputGroup>
-                  <div className="table-responsive">
-                    <table className="table table-hover">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Case Name</th>
-                          <th>Contact</th>
-                          <th>Status</th>
-                          <th>Lawyer Name</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredWitnesses.map(w => (
-                          <tr key={w.id}>
-                            <td>{w.name}</td>
-                            <td>{w.caseName}</td>
-                            <td>{w.contact}</td>
-                            <td>
-                              <Badge bg={w.status === 'Testified' ? 'success' : w.status === 'Scheduled' ? 'info' : 'warning'}>
-                                {w.status}
-                              </Badge>
-                            </td>
-                            <td>{w.lawyerName}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card.Body>
-              </Card>
-            )}
+  <Card className="mb-4">
+    <Card.Header>
+      <h5 className="mb-0">Witnesses</h5>
+      <p className="text-muted mb-0">View witnesses submitted by lawyers/clients</p>
+    </Card.Header>
+    <Card.Body>
+      <InputGroup className="mb-3">
+        <InputGroup.Text>
+          <Search size={18} />
+        </InputGroup.Text>
+        <Form.Control
+          placeholder="Search by name, case, contact, or lawyer..."
+          value={searchWitness}
+          onChange={(e) => setSearchWitness(e.target.value)}
+        />
+      </InputGroup>
+      <div className="table-responsive">
+        <table className="table table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Case Name</th>
+              <th>Contact</th>
+              <th>Status</th>
+              <th>Lawyer Name</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredWitnesses.map((witnessData) => {
+              const { witness, cases } = witnessData; // Destructure witness and cases
+              const caseStatement = cases[0]?.statement || 'No Case Info'; // Handle if cases array is empty
+
+              return (
+                <tr key={witness.id}>
+                  <td>{`${witness.firstname} ${witness.lastname}`}</td>
+                  <td>{caseStatement}</td>
+                  <td>{witness.phone}</td>
+                  <td>
+                    <Badge bg={witness.status === 'Testified' ? 'success' : witness.status === 'Scheduled' ? 'info' : 'warning'}>
+                      {witness.status || 'N/A'}
+                    </Badge>
+                  </td>
+                  <td>{witness.lawyerName || 'Unknown'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card.Body>
+  </Card>
+)}
             {selectedPage === 'payments' && (
-              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-credit-card me-2"></i>Payment Management</h2>
-                      <div className="text-muted mb-2">View and manage court payments from lawyers and clients.</div>
-                    </div>
-                    <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
-                      setEditingPayment(null);
-                      setPaymentForm({
-                        caseName: '',
-                        lawyerName: '',
-                        clientName: '',
-                        paymentType: '',
-                        purpose: '',
-                        amount: '',
-                        mode: '',
-                        paymentDate: '',
-                        status: 'Pending'
-                      });
-                      setShowPaymentModal(true);
-                    }}>
-                      <Plus size={20} /> Add Payment
-                    </Button>
-                  </div>
-                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
-                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
-                    <Form.Control 
-                      placeholder="Search payments by case, lawyer, client, or status..." 
-                      value={searchPayment} 
-                      onChange={e => setSearchPayment(e.target.value)} 
-                    />
-                  </InputGroup>
-                  <div className="table-responsive">
-                    <table className="table align-middle mb-0">
-                      <thead style={{ background: '#f4f6fa' }}>
-                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
-                          <th>Case Name</th>
-                          <th>Lawyer</th>
-                          <th>Client</th>
-                          <th>Payment Type</th>
-                          <th>Purpose</th>
-                          <th>Amount</th>
-                          <th>Mode</th>
-                          <th>Payment Date</th>
-                          <th>Status</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {courtPayments
-                          .filter(p => 
-                            p.caseName.toLowerCase().includes(searchPayment.toLowerCase()) ||
-                            p.lawyerName.toLowerCase().includes(searchPayment.toLowerCase()) ||
-                            p.clientName.toLowerCase().includes(searchPayment.toLowerCase()) ||
-                            p.status.toLowerCase().includes(searchPayment.toLowerCase())
-                          )
-                          .map((payment) => (
-                            <tr key={payment.id}>
-                              <td>{payment.caseName}</td>
-                              <td>{payment.lawyerName}</td>
-                              <td>{payment.clientName}</td>
-                              <td>{payment.paymentType}</td>
-                              <td>{payment.purpose}</td>
-                              <td>${payment.amount}</td>
-                              <td>{payment.mode}</td>
-                              <td>{payment.paymentDate}</td>
-                              <td>
-                                <Badge bg={payment.status === 'Paid' ? 'success' : 'warning'}>
-                                  {payment.status}
-                              </Badge>
-                            </td>
-                            <td>
-                              <Button
-                                variant="outline-primary"
-                                size="sm"
-                                className="me-2"
-                                  onClick={() => {
-                                    setEditingPayment(payment);
-                                    setPaymentForm(payment);
-                                    setShowPaymentModal(true);
-                                  }}
-                                >
-                                  Edit
-                              </Button>
-                              <Button
-                                variant="outline-danger"
-                                size="sm"
-                                  onClick={() => {
-                                    setConfirm({
-                                      show: true,
-                                      type: 'deletePayment',
-                                      payload: payment
-                                    });
-                                  }}
-                                >
-                                  Delete
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card.Body>
-              </Card>
+      <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+        <Card.Body>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}>
+                <i className="bi bi-credit-card me-2"></i>Payment Management
+              </h2>
+              <div className="text-muted mb-2">View and manage court payments from lawyers and clients.</div>
+            </div>
+            <Button
+              variant="primary"
+              className="d-flex align-items-center gap-2"
+              onClick={() => {
+                setEditingPayment(null);
+                setPaymentForm({
+                  caseName: '',
+                  lawyerName: '',
+                  clientName: '',
+                  paymentType: '',
+                  purpose: '',
+                  amount: '',
+                  mode: '',
+                  paymentDate: '',
+                  status: 'Pending',
+                });
+                setShowPaymentModal(true);
+              }}
+            >
+              <Plus size={20} /> Add Payment
+            </Button>
+          </div>
+          <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+            <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+            <Form.Control
+              placeholder="Search payments by case, lawyer, client, or status..."
+              value={searchPayment}
+              onChange={(e) => setSearchPayment(e.target.value)}
+            />
+          </InputGroup>
+
+          {/* Displaying Loading Spinner if Data is Being Loaded */}
+          {loadingPayments ? (
+            <div>Loading payments...</div>
+          ) : error ? (
+            <div>{error}</div>
+          ) : (
+            <div className="table-responsive">
+              <table className="table align-middle mb-0">
+                <thead style={{ background: '#f4f6fa' }}>
+                  <tr style={{ color: '#22304a', fontWeight: 600 }}>
+                    <th>Case Name</th>
+                    <th>Lawyer</th>
+                    <th>Client</th>
+                    <th>Payment Type</th>
+                    <th>Purpose</th>
+                    <th>Amount</th>
+                    <th>Mode</th>
+                    <th>Payment Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+               <tbody>
+  {courtPayments
+    .filter(
+      (p) =>
+        (p.caseName?.toLowerCase() || '').includes(searchPayment.toLowerCase()) ||
+        (p.lawyerName?.toLowerCase() || '').includes(searchPayment.toLowerCase()) ||
+        (p.clientName?.toLowerCase() || '').includes(searchPayment.toLowerCase()) ||
+        (p.status?.toLowerCase() || '').includes(searchPayment.toLowerCase())
+    )
+    .map((payment) => (
+      <tr key={payment.id}>
+        <td>{payment.caseName}</td>
+        <td>{payment.lawyerName || 'N/A'}</td>  {/* Assuming you handle lawyerName properly */}
+        <td>{payment.clientName || 'N/A'}</td>  {/* Assuming you handle clientName properly */}
+        <td>{payment.paymentType}</td>
+        <td>{payment.purpose}</td>
+        <td>${payment.amount}</td>
+        <td>{payment.mode}</td>
+        <td>{payment.paymentDate}</td>
+        <td>
+          <Badge bg={payment.status === 'Paid' ? 'success' : 'warning'}>
+            {payment.status}
+          </Badge>
+        </td>
+        <td>
+          <Button
+            variant="outline-primary"
+            size="sm"
+            className="me-2"
+            onClick={() => {
+              setEditingPayment(payment);
+              setPaymentForm(payment);
+              setShowPaymentModal(true);
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="outline-danger"
+            size="sm"
+            onClick={() => {
+              setConfirm({
+                show: true,
+                type: 'deletePayment',
+                payload: payment,
+              });
+            }}
+          >
+            Delete
+          </Button>
+        </td>
+      </tr>
+    ))}
+</tbody>
+
+              </table>
+            </div>
+          )}
+        </Card.Body>
+      </Card>
             )}
             {selectedPage === 'prosecutors' && (
               <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>

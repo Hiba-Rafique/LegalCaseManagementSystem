@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Button, Image } from 'react-bootstrap';
 import { User } from 'lucide-react';
@@ -6,7 +6,6 @@ import ClientCases from '../components/ClientCases';
 import ClientHearingSchedule from '../components/ClientHearingSchedule';
 import ClientDocuments from '../components/ClientDocuments';
 import Profile from '../components/ClientProfile';
-import ClientSidebarNav from '../components/dashboard/ClientSidebarNav';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const PROFILE_IMAGE_KEY = 'clientProfileImage';
@@ -15,6 +14,54 @@ function ClientDashboard() {
   const [activeSection, setActiveSection] = useState('cases');
   const [profileImage, setProfileImage] = useState(localStorage.getItem(PROFILE_IMAGE_KEY) || 'https://via.placeholder.com/40');
   const navigate = useNavigate();
+
+  const [cases, setCases] = useState([]);
+  const [loadingCases, setLoadingCases] = useState(true);
+  const [caseError, setCaseError] = useState(null);
+
+  useEffect(() => {
+    const fetchCases = async () => {
+      try {
+        const response = await fetch('/api/cases', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+          },
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch cases');
+        }
+
+        const result = await response.json();
+        if (result.cases) {
+          // Map the cases and include history
+          const mappedCases = result.cases.map(c => ({
+            id: c.caseid,                    // map caseid to id
+            title: c.title,
+            description: c.description,
+            caseType: c.casetype,            // map casetype to caseType
+            filingDate: c.filingdate,
+            status: c.status,
+            history: c.history || []         // Ensure history is included
+          }));
+
+          setCases(mappedCases);
+        } else {
+          setCaseError('No cases found.');
+        }
+      } catch (err) {
+        console.error('Error fetching cases:', err);
+        setCaseError('Error fetching cases.');
+      } finally {
+        setLoadingCases(false);
+      }
+    };
+
+    fetchCases();
+  }, []);
 
   const handleProfileClick = () => {
     setActiveSection('profile');
@@ -105,14 +152,14 @@ function ClientDashboard() {
                 }}
                 onClick={() => setActiveSection(section)}
                 onMouseEnter={e => {
-                  if (!activeSection || activeSection !== section) {
+                  if (activeSection !== section) {
                     e.currentTarget.style.background = 'rgba(255,255,255,0.18)';
                     e.currentTarget.style.color = '#1ec6b6';
                     e.currentTarget.style.boxShadow = '0 2px 8px rgba(30,198,182,0.12)';
                   }
                 }}
                 onMouseLeave={e => {
-                  if (!activeSection || activeSection !== section) {
+                  if (activeSection !== section) {
                     e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.color = '#fff';
                     e.currentTarget.style.boxShadow = 'none';
@@ -125,16 +172,18 @@ function ClientDashboard() {
             ))}
           </div>
         </div>
+
         {/* Main Content */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <div className="container-fluid py-4">
-            {activeSection === 'cases' && <ClientCases />}
+            {activeSection === 'cases' && <ClientCases cases={cases} loading={loadingCases} error={caseError} />}
             {activeSection === 'hearings' && <ClientHearingSchedule />}
             {activeSection === 'documents' && <ClientDocuments />}
             {activeSection === 'profile' && <Profile />}
           </div>
         </div>
       </div>
+
       <style>{`
         .dashboard-heading, .dashboard-gradient, .modal-title, .card-title, .card-header h4, .card-header h5, h4.fw-bold, h5.fw-bold {
           background: linear-gradient(90deg, #22304a 0%, #1ec6b6 100%);

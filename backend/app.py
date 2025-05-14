@@ -2,6 +2,7 @@ import datetime
 from decimal import Decimal
 import logging
 import os
+import traceback
 from flask import Flask, g, request, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_cors import CORS
@@ -10,6 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData, create_engine
+from sqlalchemy.orm import aliased
 # from logdecorator import log_action
 from config import Config
 from models import *
@@ -152,6 +154,12 @@ def complete_profile():
                 db.add(client)
                 db.commit()
                 print(f"Inserted CaseParticipant: {client}")
+
+        elif user.role == 'Admin':
+            admin = Admin(userid=user.userid)
+            db.add(admin)
+            db.commit()
+            print(f"Inserted Admin: {admin}")
 
         elif user.role == 'Lawyer':
             barlicenseno = data.get('barLicense')  
@@ -369,6 +377,7 @@ def update_client_profile():
         db.rollback()
         return jsonify(success=False, message=str(e)), 500
     
+    
 @app.route('/api/judgeprofile', methods=['PUT'])
 # @log_action(action_type="Update",entity_type="Judge")
 def update_judge_profile():
@@ -493,35 +502,64 @@ def get_court_for_registrar():
         return jsonify(success=False, message=str(e)), 500
     finally:
         db.close()
-        
-        
 @app.route('/api/payments', methods=['GET'])
 @login_required
-def get_lawyer_payments():
+def get_payments():
     db = SessionLocal()
     try:
-        #fetch lawyer using userid
-        lawyer = db.query(Lawyer).filter_by(userid=current_user.userid).first()
-        if not lawyer:
-            return jsonify({'status': 'error', 'message': 'Lawyer profile not found'}), 404
+        # Check if the user is a lawyer or a court registrar
+        if current_user.role == 'lawyer':
+            # Fetch lawyer using userid
+            lawyer = db.query(Lawyer).filter_by(userid=current_user.userid).first()
+            if not lawyer:
+                return jsonify({'status': 'error', 'message': 'Lawyer profile not found'}), 404
 
-        #fetch payments linked to lawyerid
-        payments = (
-            db.query(Payments)
-            .filter_by(lawyerid=lawyer.lawyerid)
-            .join(Cases, Payments.caseid == Cases.caseid)
-            .with_entities(
-                Payments.paymentdate,
-                Cases.title.label("casename"),
-                Payments.purpose,
-                Payments.balance,
-                Payments.mode,
-                Payments.paymenttype
+            # Fetch payments linked to the lawyer's id
+            payments = (
+                db.query(Payments)
+                .filter_by(lawyerid=lawyer.lawyerid)
+                .join(Cases, Payments.caseid == Cases.caseid)
+                .with_entities(
+                    Payments.paymentdate,
+                    Cases.title.label("casename"),
+                    Payments.purpose,
+                    Payments.balance,
+                    Payments.mode,
+                    Payments.paymenttype
+                )
+                .all()
             )
-            .all()
-        )
 
-        
+        elif current_user.role == 'CourtRegistrar':
+            # Fetch payments for all cases in the court assigned to the court registrar
+            court_registrar = db.query(Courtregistrar).filter_by(userid=current_user.userid).first()
+            if not court_registrar:
+                return jsonify({'status': 'error', 'message': 'Court registrar profile not found'}), 404
+            
+            # Fetch court_id linked to court registrar through t_courtaccess
+            court_id = court_registrar.courtid  # Assuming this field exists
+            
+            # Fetch payments related to cases in the court accessed by the court registrar
+            payments = (
+                db.query(Payments)
+                .join(Cases, Payments.caseid == Cases.caseid)
+                .join(t_courtaccess, t_courtaccess.c.caseid == Cases.caseid)  # Use t_courtaccess.c.caseid
+                .filter(t_courtaccess.c.courtid == court_id)  # Filter by court_id
+                .with_entities(
+                    Payments.paymentdate,
+                    Cases.title.label("casename"),
+                    Payments.purpose,
+                    Payments.balance,
+                    Payments.mode,
+                    Payments.paymenttype
+                )
+                .all()
+            )
+
+        else:
+            return jsonify({'status': 'error', 'message': 'Unauthorized role'}), 403
+
+        # Prepare response data
         result = [
             {
                 "paymentdate": str(p.paymentdate),
@@ -539,9 +577,10 @@ def get_lawyer_payments():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         db.close()
+
         
 @app.route('/api/payments', methods=['POST'])
-# @log_action(action_type="Create",entity_type="Payments")
+# @log_action(action_type="Create",entity_type="Paymnts")
 @login_required
 def create_payment():
     db = SessionLocal()
@@ -814,11 +853,11 @@ def get_courtrooms_by_court(courtid):
         return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         db.close()
-  
+        
 @app.route('/api/cases', methods=['GET'])
 @login_required
 def get_cases():
-    db = SessionLocal()  # Initialize the session from SessionLocal()
+    db = SessionLocal()
     try:
         # Filter parameters
         query_params = request.args
@@ -826,13 +865,12 @@ def get_cases():
         casetype = query_params.get('casetype')
         title = query_params.get('title')
 
-        # Get current user's session info
         userid = current_user.userid
         role = current_user.role
 
         query = db.query(Cases)
 
-        # Filter cases based on logged-in user's role
+        # Role-based access
         if role == 'Lawyer':
             lawyer = db.query(Lawyer).filter_by(userid=userid).first()
             if not lawyer:
@@ -843,25 +881,186 @@ def get_cases():
             judge = db.query(Judge).filter_by(userid=userid).first()
             if not judge:
                 return jsonify({'message': 'Judge profile not found'}), 404
-            query = query.join(Cases.judge).filter(Judge.judgeid == judge.judgeid)
+
+            query = db.query(Cases).join(Cases.judge).filter(Judge.judgeid == judge.judgeid)
+            cases = query.distinct().all()
+
+            result = []
+            for c in cases:
+                court_names = [court.courtname for court in c.court if court.courtname]
+                court_name_str = ', '.join(court_names)
+
+                lawyer_names = []
+                for lawyer in c.lawyer:
+                    if lawyer.users:
+                        full_name = f"{lawyer.users.firstname or ''} {lawyer.users.lastname or ''}".strip()
+                        lawyer_names.append(full_name)
+                lawyers_str = ' & '.join(lawyer_names)
+
+                history = [
+                    {
+                        'date': h.actiondate.isoformat() if h.actiondate else None,
+                        'event': h.actiontaken
+                    }
+                    for h in c.casehistory
+                ]
+
+                final_decision = None
+                if c.finaldecision:
+                    fd = c.finaldecision[0]
+                    final_decision = {
+                        'verdict': fd.verdict,
+                        'summary': fd.decisionsummary,
+                        'date': fd.decisiondate.isoformat() if fd.decisiondate else None
+                    }
+
+                evidence = [
+                    {
+                        'id': e.evidenceid,
+                        'type': e.evidencetype,
+                        'description': e.description,
+                        'submittedDate': e.submitteddate.isoformat() if e.submitteddate else None,
+                        'evidencePath': e.filepath
+                    }
+                    for e in c.evidence
+                ]
+
+                witness_links = db.query(Witnesscase).filter_by(caseid=c.caseid).all()
+                witnesses = []
+                for link in witness_links:
+                    witness = db.query(Witnesses).filter_by(witnessid=link.witnessid).first()
+                    if witness:
+                        witnesses.append({
+                            'id': witness.witnessid,
+                            'firstName': witness.firstname,
+                            'lastName': witness.lastname,
+                            'cnic': witness.cnic,
+                            'phone': witness.phone,
+                            'email': witness.email,
+                            'address': witness.address,
+                            'pastHistory': witness.pasthistory
+                        })
+
+                result.append({
+                    'id': c.caseid,
+                    'title': c.title,
+                    'description': c.description,
+                    'caseType': c.casetype,
+                    'filingDate': c.filingdate.isoformat() if c.filingdate else None,
+                    'status': c.status,
+                    'lawyers': lawyers_str,
+                    'clientName': "",  # Optional to populate from Caseparticipant
+                    'courtName': court_name_str,
+                    'nextHearing': "N/A",  # Can be extended using c.hearings
+                    'remarks': "",
+                    'finalDecision': final_decision,
+                    'history': history,
+                    'evidence': evidence,
+                    'witnesses': witnesses
+                })
+
+            return jsonify({'cases': result}), 200
 
         elif role == 'CaseParticipant':
             participant = db.query(Caseparticipant).filter_by(userid=userid).first()
             if not participant:
                 return jsonify({'message': 'CaseParticipant profile not found'}), 404
-            query = query.join(Cases.caseparticipant).filter(Caseparticipant.participantid == participant.participantid)
+
+            # Step 1: Get accessible case IDs from t_caseparticipantaccess
+            access_rows = db.execute(
+                t_caseparticipantaccess.select().filter_by(participantid=participant.participantid)
+            ).fetchall()
+            case_ids = [row[0] for row in access_rows]
+
+
+            if not case_ids:
+                return jsonify({'cases': []}), 200
+
+            # Step 2: Query cases and build full detail
+            cases = db.query(Cases).filter(Cases.caseid.in_(case_ids)).distinct().all()
+            result = []
+
+            for c in cases:
+                court_names = [court.courtname for court in c.court if court.courtname]
+                court_name_str = ', '.join(court_names)
+
+                lawyer_names = []
+                for lawyer in c.lawyer:
+                    if lawyer.users:
+                        full_name = f"{lawyer.users.firstname or ''} {lawyer.users.lastname or ''}".strip()
+                        lawyer_names.append(full_name)
+                lawyers_str = ' & '.join(lawyer_names)
+
+                history = [
+                    {
+                        'date': h.actiondate.isoformat() if h.actiondate else None,
+                        'event': h.actiontaken
+                    }
+                    for h in c.casehistory
+                ]
+
+                final_decision = None
+                if c.finaldecision:
+                    fd = c.finaldecision[0]
+                    final_decision = {
+                        'verdict': fd.verdict,
+                        'summary': fd.decisionsummary,
+                        'date': fd.decisiondate.isoformat() if fd.decisiondate else None
+                    }
+
+                evidence = [
+                    {
+                        'id': e.evidenceid,
+                        'type': e.evidencetype,
+                        'description': e.description,
+                        'submittedDate': e.submitteddate.isoformat() if e.submitteddate else None,
+                        'evidencePath': e.filepath
+                    }
+                    for e in c.evidence
+                ]
+
+                witness_links = db.query(Witnesscase).filter_by(caseid=c.caseid).all()
+                witnesses = []
+                for link in witness_links:
+                    witness = db.query(Witnesses).filter_by(witnessid=link.witnessid).first()
+                    if witness:
+                        witnesses.append({
+                            'id': witness.witnessid,
+                            'firstName': witness.firstname,
+                            'lastName': witness.lastname,
+                            'cnic': witness.cnic,
+                            'phone': witness.phone,
+                            'email': witness.email,
+                            'address': witness.address,
+                            'pastHistory': witness.pasthistory
+                        })
+
+                result.append({
+                    'id': c.caseid,
+                    'title': c.title,
+                    'description': c.description,
+                    'caseType': c.casetype,
+                    'filingDate': c.filingdate.isoformat() if c.filingdate else None,
+                    'status': c.status,
+                    'lawyers': lawyers_str,
+                    'clientName': "",  # Optional to populate
+                    'courtName': court_name_str,
+                    'nextHearing': "N/A",
+                    'remarks': "",
+                    'finalDecision': final_decision,
+                    'history': history,
+                    'evidence': evidence,
+                    'witnesses': witnesses
+                })
+
+            return jsonify({'cases': result}), 200
 
         elif role == 'CourtRegistrar':
-            # Get the CourtRegistrar associated with the current user
             court_registrar = db.query(Courtregistrar).filter_by(userid=userid).first()
-
             if not court_registrar:
                 return jsonify({'message': 'CourtRegistrar not found'}), 404
 
-            # Get the courtId associated with the CourtRegistrar
             court_id = court_registrar.courtid
-
-            # Fetch court access cases related to the courtId using the manually defined table
             court_access_cases = db.execute(
                 t_courtaccess.select().filter_by(courtid=court_id)
             ).fetchall()
@@ -869,35 +1068,27 @@ def get_cases():
             if not court_access_cases:
                 return jsonify({'message': 'No cases found for this court.'}), 404
 
-            # Extract the caseIds from t_courtaccess
             case_ids = [row[0] for row in court_access_cases]
-
-            # Query the Cases table to fetch the cases associated with these caseIds
             cases = db.query(Cases).filter(Cases.caseid.in_(case_ids)).all()
 
             if not cases:
                 return jsonify({'message': 'No cases found.'}), 404
 
-            # Return the case data as a response (assuming Cases has a to_dict() method)
             result = [
-    {
-        'caseid': c.caseid,
-        'title': c.title,
-        'description': c.description,
-        'casetype': c.casetype,
-        'filingdate': c.filingdate.isoformat() if c.filingdate else None,
-        'status': c.status,
-    }
-    for c in cases
-]
+                {
+                    'caseid': c.caseid,
+                    'title': c.title,
+                    'description': c.description,
+                    'casetype': c.casetype,
+                    'filingdate': c.filingdate.isoformat() if c.filingdate else None,
+                    'status': c.status,
+                }
+                for c in cases
+            ]
 
             return jsonify({'cases': result}), 200
 
-        elif role == 'Admin':
-            # Admins see everything
-            pass
-
-        # Apply filters
+        # Apply filters for non-judge roles
         if status:
             query = query.filter(Cases.status == status)
         if casetype:
@@ -925,7 +1116,9 @@ def get_cases():
         return jsonify({'message': str(e)}), 500
 
     finally:
-        db.close()  # Close the session
+        db.close()
+
+
 
 
 @app.route('/api/hearings', methods=['GET'])
@@ -989,6 +1182,7 @@ def get_hearings_role():
 
         result = [
             {
+                # 'casename'
                 'hearingid': h.hearingid,
                 'hearingdate': h.hearingdate.isoformat(),
                 'hearingtime': h.hearingtime.strftime("%H:%M") if h.hearingtime else None,
@@ -1133,19 +1327,53 @@ def get_case_history(case_id):
     db = SessionLocal()
     try:
         history = db.query(Casehistory).filter_by(caseid=case_id).all()
-        result = [
-            {
-                'actiondate': h.actiondate.isoformat(),
-                'actiontaken': h.actiontaken,
-                'remarks': h.remarks
-            }
-            for h in history
-        ]
+        result = []
+
+        for h in history:
+            case = db.query(Cases).filter_by(caseid=case_id).first()
+
+            # Fetch related judge (first one for simplicity)
+            judge = case.judge[0].users if case.judge else None
+            lawyer = case.lawyer[0].users if case.lawyer else None
+            client = case.caseparticipant[0].users if case.caseparticipant else None
+
+            result.append({
+                'caseName': case.title,
+                'judgeName': f"{judge.firstname} {judge.lastname}" if judge else "N/A",
+                'lawyerName': f"{lawyer.firstname} {lawyer.lastname}" if lawyer else "N/A",
+                'clientName': f"{client.firstname} {client.lastname}" if client else "N/A",
+                'remarks': h.remarks,
+                'actionDate': h.actiondate.isoformat() if h.actiondate else None,
+                'actionTaken': h.actiontaken,
+                'status': case.status  # or h.status if it exists per entry
+            })
+
         return jsonify({'history': result}), 200
     except Exception as e:
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
+
+        
+# @app.route('/api/cases/<int:case_id>/history', methods=['GET'])
+# @login_required
+# def get_case_history(case_id):
+#     db = SessionLocal()
+#     try:
+#         history = db.query(Casehistory).filter_by(caseid=case_id).all()
+#         result = [
+#             {
+#                 'actiondate': h.actiondate.isoformat(),
+#                 'actiontaken': h.actiontaken,
+#                 'remarks': h.remarks
+#             }
+#             for h in history
+#         ]
+#         return jsonify({'history': result}), 200
+#     except Exception as e:
+#         return jsonify({'message': str(e)}), 500
+#     finally:
+#         db.close()
  
         
 @app.route('/api/cases/analytics', methods=['GET'])
@@ -1845,6 +2073,60 @@ def update_evidence(evidence_id):
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
+        
+@app.route('/api/evidence', methods=['GET'])
+def get_evidence():
+    db = SessionLocal()
+    try:
+        # Step 1: Get the current user's userid (assuming you have current user id in session)
+        userid = current_user.userid  # Implement this method to get the logged-in user's ID
+
+        # Step 2: Get the court_id from the courtregistrar (assuming there's a `CourtRegistrar` model)
+        court_registrar = db.query(Courtregistrar).filter_by(userid=userid).first()
+
+        if not court_registrar:
+            return jsonify({'message': 'CourtRegistrar not found'}), 404
+
+        # Step 3: Get the courtId associated with the CourtRegistrar
+        court_id = court_registrar.courtid
+
+        # Step 4: Fetch court access cases related to the courtId using the manually defined table (t_courtaccess)
+        court_access_cases = db.execute(
+            t_courtaccess.select().filter_by(courtid=court_id)
+        ).fetchall()
+
+        if not court_access_cases:
+            return jsonify({"error": "No cases found for this court"}), 404
+
+        # Extract case IDs from court access cases (access by index, assuming 'case_id' is the first element)
+        case_ids = [case[0] for case in court_access_cases]  # Assuming case_id is the first column
+
+        # Step 5: Fetch evidence linked to these case IDs
+        evidence_list = db.query(Evidence).join(Cases).filter(Cases.caseid.in_(case_ids)).all()
+
+        # Prepare the response
+        result = []
+        for e in evidence_list:
+            result.append({
+                "id": e.evidenceid,
+                "evidenceType": e.evidencetype,
+                "description": e.description,
+                "submissionDate": e.submitteddate.strftime('%Y-%m-%d') if e.submitteddate else None,
+                "caseName": e.cases.title if e.cases else None,
+                # "lawyerName": e.cases.lawyername if e.cases else None,
+                "file": e.filepath
+            })
+
+        return jsonify({"evidence": result})
+
+    except Exception as ex:
+        # Print the full error traceback for debugging
+        print("Error: ", ex)
+        print("Full traceback: ", traceback.format_exc())
+        return jsonify({"error": "Failed to fetch evidence"}), 500
+    finally:
+        db.close()
+
 
 @app.route('/api/evidence/<int:evidence_id>', methods=['DELETE'])
 @login_required
@@ -2005,6 +2287,82 @@ def get_all_witnesses():
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
+        
+@app.route('/api/witnesses/court', methods=['GET'])
+@login_required
+def get_court_specific_witnesses():
+    db = SessionLocal()
+    try:
+        # Step 1: Get the current user's courtregistrar_id (assuming you have current user id in session)
+        userid = current_user.userid  # Implement this method to get the logged-in user's ID
+
+        # Step 2: Get the court_id from the courtregistrar (assuming there's a `CourtRegistrar` model)
+        court_registrar = db.query(Courtregistrar).filter_by(userid=userid).first()
+
+        if not court_registrar:
+            return jsonify({'message': 'CourtRegistrar not found'}), 404
+
+        # Step 3: Get the courtId associated with the CourtRegistrar
+        court_id = court_registrar.courtid
+
+        # Step 4: Fetch court access cases related to the courtId using the manually defined table (t_courtaccess)
+        court_access_cases = db.query(t_courtaccess.c.caseid).filter_by(courtid=court_id).all()
+
+        if not court_access_cases:
+            return jsonify({"error": "No cases found for this court"}), 404
+
+        # Extract case IDs from court access cases
+        case_ids = [case.caseid for case in court_access_cases]  # Accessing attribute of the result object
+
+        # Step 5: Fetch all witnesses associated with these case IDs
+        witness_cases = db.query(Witnesscase).filter(Witnesscase.caseid.in_(case_ids)).all()
+
+        # If no witness cases found
+        if not witness_cases:
+            return jsonify({"message": "No witnesses found for these cases"}), 404
+
+        # Fetching the unique witnesses from witness_cases
+        witness_ids = {wc.witnessid for wc in witness_cases}
+        witnesses = db.query(Witnesses).filter(Witnesses.witnessid.in_(witness_ids)).all()
+
+        # Prepare the response
+        result = []
+        for witness in witnesses:
+            # Get all witness-case relationships for this witness
+            related_cases = [wc for wc in witness_cases if wc.witnessid == witness.witnessid]
+
+            # Return the cases for this witness
+            case_data = []
+            for wc in related_cases:
+                case_data.append({
+                    'case_id': wc.caseid,
+                    'statement': wc.statement,
+                    'statementdate': wc.statementdate
+                })
+
+            result.append({
+                'witness': {
+                    'id': witness.witnessid,
+                    'firstname': witness.firstname,
+                    'lastname': witness.lastname,
+                    'cnic': witness.cnic,
+                    'phone': witness.phone,
+                    'email': witness.email,
+                    'address': witness.address,
+                    'pasthistory': witness.pasthistory,
+                },
+                'cases': case_data
+            })
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        # Log the error and return a message
+        print(f"Error: {e}")
+        return jsonify({'message': str(e)}), 500
+    finally:
+        db.close()
+
 
 
 
@@ -2311,6 +2669,34 @@ def check_case_access(case_id):
         return query.first() is not None
     finally:
         db.close()
+@app.route('/api/logs', methods=['GET'])
+def get_logs():
+    try:
+        db = SessionLocal()
+        
+        # Querying the correct table LogTable
+        logs = db.query(Logtable).all()
+        
+        # Serializing data
+        logs_data = [
+            {
+                'logid': log.logid,
+                'adminid': log.adminid,
+                'actiontype': log.actiontype,
+                'description': log.description,
+                'status': log.status,
+                'actiontimestamp': log.actiontimestamp,
+                'entitytype': log.entitytype,
+                'admin': {
+                    'adminid': log.admin.adminid if log.admin else None,
+                    'username': log.admin.username if log.admin else None,
+                }
+            }
+            for log in logs
+        ]
+        return jsonify(logs_data), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

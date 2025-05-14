@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Container, Table, Form, Card, Image } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Container, Table, Form, Card, Image, Spinner, Alert } from 'react-bootstrap';
 import { LogOut } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -7,35 +7,34 @@ const AdminDashboard = () => {
   const [profileImage, setProfileImage] = useState('https://via.placeholder.com/40');
   const [adminData, setAdminData] = useState({ username: 'Muhammad Kaif' });
   
-  // Mock data for system logs
-  const mockLogs = [
-    {
-      id: 1,
-      actionType: 'Login',
-      description: 'User logged in successfully',
-      status: 'Success',
-      timestamp: '2024-03-20 10:30:00',
-      entityType: 'User'
-    },
-    {
-      id: 2,
-      actionType: 'Case Creation',
-      description: 'New case created',
-      status: 'Success',
-      timestamp: '2024-03-20 11:15:00',
-      entityType: 'Case'
-    },
-    {
-      id: 3,
-      actionType: 'Document Upload',
-      description: 'Failed to upload document',
-      status: 'Failed',
-      timestamp: '2024-03-20 12:00:00',
-      entityType: 'Document'
-    }
-  ];
+  // State to hold logs fetched from the API
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filteredLogs = mockLogs.filter(log =>
+  // Fetch logs from the API
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const res = await fetch('/api/logs');
+        const result = await res.json();
+        
+        if (res.ok) {
+          setLogs(result);  // Assuming the response is an array of log objects
+        } else {
+          setError('Failed to load logs');
+        }
+      } catch (err) {
+        setError('An error occurred while fetching logs');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLogs();
+  }, []);
+
+  const filteredLogs = logs.filter(log =>
     Object.values(log).some(value =>
       value.toString().toLowerCase().includes(searchTerm.toLowerCase())
     )
@@ -92,34 +91,54 @@ const AdminDashboard = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </Form.Group>
-            <div className="table-responsive">
-              <Table striped bordered hover>
-                <thead>
-                  <tr>
-                    <th>Action Type</th>
-                    <th>Description</th>
-                    <th>Status</th>
-                    <th>Timestamp</th>
-                    <th>Entity Type</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLogs.map((log) => (
-                    <tr key={log.id}>
-                      <td>{log.actionType}</td>
-                      <td>{log.description}</td>
-                      <td>
-                        <span className={`badge ${log.status === 'Success' ? 'bg-success' : 'bg-danger'}`}>
-                          {log.status}
-                        </span>
-                      </td>
-                      <td>{log.timestamp}</td>
-                      <td>{log.entityType}</td>
+            
+            {/* Show loading spinner if the logs are being fetched */}
+            {loading && (
+              <div className="d-flex justify-content-center">
+                <Spinner animation="border" />
+              </div>
+            )}
+
+            {/* Show error if fetching fails */}
+            {error && <Alert variant="danger">{error}</Alert>}
+
+            {/* Show the logs table once data is fetched */}
+            {!loading && !error && (
+              <div className="table-responsive">
+                <Table striped bordered hover>
+                  <thead>
+                    <tr>
+                      <th>Action Type</th>
+                      <th>Description</th>
+                      <th>Status</th>
+                      <th>Timestamp</th>
+                      <th>Entity Type</th>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredLogs.length > 0 ? (
+                      filteredLogs.map((log) => (
+                        <tr key={log.logid}>
+                          <td>{log.actiontype}</td>
+                          <td>{log.description}</td>
+                          <td>
+                            <span className={`badge ${log.status === 'Success' ? 'bg-success' : 'bg-danger'}`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td>{new Date(log.actiontimestamp).toLocaleString()}</td>
+                          <td>{log.entitytype}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="text-center">No logs found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+              </div>
+            )}
           </Card.Body>
         </Card>
       </Container>

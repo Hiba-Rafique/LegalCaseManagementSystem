@@ -5,39 +5,6 @@ import moment from 'moment';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './CalendarSummary.css';
 
-const mockHearings = [
-  {
-    id: 1,
-    title: 'Court Hearing - State vs. John Doe',
-    date: moment().date(10),
-    time: '10:00 AM',
-    type: 'Court Date',
-    location: 'Metropolis Central Courthouse',
-    judge: 'Judge Judy',
-    description: 'Initial hearing for State vs. John Doe.'
-  },
-  {
-    id: 2,
-    title: 'Court Hearing - Smith v. Jones',
-    date: moment().date(11),
-    time: '2:30 PM',
-    type: 'Court Date',
-    location: 'Metropolis Central Courthouse',
-    judge: 'Judge Dredd',
-    description: 'Evidence presentation for Smith v. Jones.'
-  },
-  {
-    id: 3,
-    title: 'Court Hearing - In re Estate of Miller',
-    date: moment().date(10),
-    time: '11:00 AM',
-    type: 'Court Date',
-    location: 'Metropolis Probate Court',
-    judge: 'Judge Amy',
-    description: 'Final hearing for In re Estate of Miller.'
-  }
-];
-
 const getEventBadgeVariant = (type) => {
   switch (type) {
     case 'Court Date': return 'danger';
@@ -50,13 +17,31 @@ const getEventBadgeVariant = (type) => {
 function ClientHearingSchedule() {
   const [currentDate, setCurrentDate] = useState(moment());
   const [selectedDate, setSelectedDate] = useState(moment());
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState([]); // This will store the hearings
   const [showEventModal, setShowEventModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
+  // Fetch hearings data from the backend using fetch API
   useEffect(() => {
-    setEvents(mockHearings);
-  }, []);
+    fetch('/api/hearings')  // Replace with your actual API URL
+      .then((response) => response.json())  // Parse the response as JSON
+      .then((data) => {
+        const hearings = data.hearings.map(hearing => ({
+          id: hearing.hearingid,
+          title: `Court Hearing ${hearing.hearingid}`, // Placeholder for title, update as needed
+          date: moment(hearing.hearingdate),
+          time: hearing.hearingtime,
+          type: 'Court Date', // Update this if you have a type field
+          location: hearing.courtroomid, // Assuming this is the location
+          judge: 'TBD', // Placeholder for judge, update as needed
+          description: 'TBD', // Placeholder for description, update as needed
+        }));
+        setEvents(hearings);
+      })
+      .catch((error) => {
+        console.error('Error fetching hearings data:', error);
+      });
+  }, []); // This runs once when the component is mounted
 
   const getDaysInMonth = () => {
     const daysInMonth = currentDate.daysInMonth();
@@ -104,7 +89,7 @@ function ClientHearingSchedule() {
   return (
     <div className="calendar-container p-2 p-md-3 p-lg-4">
       <Row className="g-3 g-lg-4 justify-content-center align-items-stretch">
-        {/* Calendar Card - now wider */}
+        {/* Calendar Card */}
         <Col xs={12} md={7} lg={8} xl={8} xxl={9}>
           <Card className="shadow-sm border-0 rounded-4 h-100">
             <Card.Body className="p-3 p-md-4">
@@ -177,13 +162,11 @@ function ClientHearingSchedule() {
             </Card.Body>
           </Card>
         </Col>
-        {/* Events Panel - now wider */}
+        {/* Events Panel */}
         <Col xs={12} md={5} lg={4} xl={4} xxl={3}>
           <Card className="shadow-sm border-0 rounded-4 h-100">
             <Card.Body className="p-3 p-md-4">
-              <h5 className="mb-4 fw-bold">
-                {selectedDate.format('dddd, MMMM Do')}
-              </h5>
+              <h5 className="mb-4 fw-bold">{selectedDate.format('dddd, MMMM Do')}</h5>
               {selectedEvents.length === 0 ? (
                 <div className="text-center text-muted py-5">
                   <CalendarIcon size={48} className="mb-3 opacity-50" />
@@ -208,7 +191,7 @@ function ClientHearingSchedule() {
                       <div className="d-flex align-items-center gap-2">
                         <MapPin size={16} className="text-primary" />
                         <span>{event.location}</span>
-      </div>
+                      </div>
                       <div className="text-muted small mt-1">Judge: {event.judge}</div>
                       <div className="text-muted small">{event.description}</div>
                     </ListGroup.Item>
@@ -235,8 +218,8 @@ function ClientHearingSchedule() {
                 </Badge>
                 <h5 className="mb-0">{selectedEvent.title}</h5>
               </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
+            </Modal.Header>
+            <Modal.Body>
               <div className="d-flex align-items-center gap-2 mb-3">
                 <Clock size={20} className="text-primary" />
                 <span>{selectedEvent.time}</span>
@@ -248,8 +231,8 @@ function ClientHearingSchedule() {
               <div className="mb-2"><strong>Judge:</strong> {selectedEvent.judge}</div>
               <div className="mb-2"><strong>Description:</strong> {selectedEvent.description}</div>
             </Modal.Body>
-             </>
-           )}
+          </>
+        )}
       </Modal>
     </div>
   );

@@ -60,7 +60,16 @@ function ClientProfile() {
       setLoading(true);
       try {
         const data = await fetchClientProfile();
-        setProfile(data);
+        console.log("Fetched Profile Data: ", data); // Debugging line to check data
+        setProfile({
+          firstname: data.firstName,
+          lastname: data.lastName,
+          dob: data.dob,
+          email: data.email,
+          phoneno: data.phone,
+          cnic: data.cnic,
+          address: data.address,
+        });
         localStorage.setItem('clientProfile', JSON.stringify(data));
       } catch (err) {
         setError(err.message);
@@ -102,9 +111,10 @@ function ClientProfile() {
     e.preventDefault();
     setLoading(true);
     try {
-      await updateClientProfile(profile);
+      // Call the API to update the profile
+      const updatedProfile = await updateClientProfile(profile);
       setIsEditing(false);
-      localStorage.setItem('clientProfile', JSON.stringify(profile));
+      localStorage.setItem('clientProfile', JSON.stringify(updatedProfile.data));
     } catch (err) {
       setError(err.message);
     } finally {

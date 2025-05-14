@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Row, Col, ListGroup, Button, Modal } from 'react-bootstrap';
 
-// Assume you have Bootstrap CSS imported in your main entry file (e.g., src/index.js or src/App.js)
-// import 'bootstrap/dist/css/bootstrap.min.css';
-
 function ClientCases() {
   const [cases, setCases] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
@@ -15,91 +12,27 @@ function ClientCases() {
   const [decisionCase, setDecisionCase] = useState(null);
 
   useEffect(() => {
-    // Placeholder data for demonstration
-    const placeholderCases = [
-      {
-        id: 1,
-        caseTitle: 'State vs. John Doe',
-        lawyerName: 'Alex Mason',
-        judgeName: 'Judge Judy',
-        courtName: 'Metropolis Central Courthouse',
-        filingDate: '2023-10-26',
-        type: 'Criminal',
-        prosecutor: 'Sam Fisher',
-        status: 'Pending',
-        remandStatus: 'Active',
-        finalDecision: {
-          verdict: 'Pending',
-          summary: 'Awaiting trial.',
-          date: ''
-        },
-        caseHistory: [
-          { date: '2023-10-26', event: 'Case filed' },
-          { date: '2023-11-01', event: 'Initial hearing scheduled' }
-        ],
-        evidence: [
-          { id: 1, type: 'Document', description: 'Charge Sheet', submittedDate: '2023-10-27', path: '/docs/charge_sheet.pdf' },
-          { id: 2, type: 'Photo', description: 'Crime Scene Photo', submittedDate: '2023-10-28', path: '/docs/crime_scene.jpg' }
-        ],
-        witnesses: [
-          { id: 1, name: 'Jane Smith', cnic: '12345-6789012-3', phone: '555-0123', email: 'jane.smith@email.com', address: '123 Main St', pastHistory: 'No prior record' }
-        ]
-      },
-      {
-        id: 2,
-        caseTitle: 'Smith v. Jones',
-        lawyerName: 'Sarah Wilson',
-        judgeName: 'Judge Dredd',
-        courtName: 'Metropolis Central Courthouse',
-        filingDate: '2024-01-15',
-        type: 'Civil',
-        prosecutor: 'N/A',
-        status: 'Active',
-        remandStatus: 'None',
-        finalDecision: {
-          verdict: 'N/A',
-          summary: 'In progress',
-          date: ''
-        },
-        caseHistory: [
-          { date: '2024-01-15', event: 'Case filed' }
-        ],
-        evidence: [],
-        witnesses: []
-      },
-      {
-        id: 3,
-        caseTitle: 'In re Estate of Miller',
-        lawyerName: 'John Doe',
-        judgeName: 'Judge Amy',
-        courtName: 'Metropolis Probate Court',
-        filingDate: '2022-05-01',
-        type: 'Probate',
-        prosecutor: 'N/A',
-        status: 'Closed',
-        remandStatus: 'Completed',
-        finalDecision: {
-          verdict: 'Probate granted',
-          summary: 'Probate granted to beneficiary.',
-          date: '2022-06-01'
-        },
-        caseHistory: [
-          { date: '2022-05-01', event: 'Case filed' },
-          { date: '2022-05-10', event: 'Hearing held' },
-          { date: '2022-06-01', event: 'Probate granted' }
-        ],
-        evidence: [
-          { id: 1, type: 'Document', description: 'Will Document', submittedDate: '2022-05-02', path: '/docs/will.pdf' }
-        ],
-        witnesses: [
-          { id: 1, name: 'Michael Brown', cnic: '45678-9012345-6', phone: '555-0125', email: 'michael.b@email.com', address: '789 Pine Rd', pastHistory: 'Testified in 2 cases' }
-        ]
+    // Simulate an API call
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/cases'); // Replace with your actual API endpoint
+        const data = await response.json();
+
+        if (data && data.cases && data.cases.length > 0) {
+          setCases(data.cases); // Set cases from the API response
+        } else {
+          setCases([]); // If no cases, set an empty array
+        }
+      } catch (err) {
+        console.error('Error fetching cases:', err);
+        setError(err); // Optionally handle error
+        setCases([]); // Set an empty array if API call fails
+      } finally {
+        setLoading(false);
       }
-    ];
-    setTimeout(() => {
-      setCases(placeholderCases);
-      setLoading(false);
-    }, 500);
+    };
+
+    fetchData();
   }, []);
 
   const handleRowClick = (caseItem) => {
@@ -138,20 +71,17 @@ function ClientCases() {
                       <tr>
                         <th>Case Title</th>
                         <th>Lawyer Name</th>
-                        <th>Judge Name</th>
                         <th>Court Name</th>
                         <th>Filing Date</th>
                         <th>Type</th>
-                        <th>Prosecutor</th>
                         <th>Status</th>
-                        <th>Remand Status</th>
-                        <th>Final Decision</th>
-                        <th>Case History</th>
+                        <th>Next Hearing</th>
+                        <th>History</th>
                       </tr>
                     </thead>
                     <tbody>
                       {cases.length === 0 ? (
-                        <tr><td colSpan={11} className="text-center text-muted py-4">No cases found for this user.</td></tr>
+                        <tr><td colSpan={8} className="text-center text-muted py-4">No cases found for this user.</td></tr>
                       ) : (
                         cases.map(caseItem => (
                           <tr
@@ -160,32 +90,17 @@ function ClientCases() {
                             style={{ cursor: 'pointer' }}
                             onClick={() => handleRowClick(caseItem)}
                           >
-                            <td>{caseItem.caseTitle}</td>
-                            <td>{caseItem.lawyerName}</td>
-                            <td>{caseItem.judgeName}</td>
+                            <td>{caseItem.title}</td>
+                            <td>{caseItem.lawyers}</td>
                             <td>{caseItem.courtName}</td>
                             <td>{caseItem.filingDate}</td>
-                            <td>{caseItem.type}</td>
-                            <td>{caseItem.prosecutor}</td>
+                            <td>{caseItem.caseType}</td>
                             <td>
-                              <span className={`badge bg-${caseItem.status === 'Closed' ? 'success' : caseItem.status === 'Active' ? 'primary' : 'warning'}`}>
+                              <span className={`badge bg-${caseItem.status === 'Closed' ? 'success' : caseItem.status === 'In Progress' ? 'primary' : 'warning'}`}>
                                 {caseItem.status}
                               </span>
                             </td>
-                            <td>{caseItem.remandStatus}</td>
-                            <td>
-                              {caseItem.status === 'Closed' ? (
-                                <Button 
-                                  variant="link" 
-                                  size="sm" 
-                                  onClick={e => { e.stopPropagation(); handleViewDecision(caseItem); }}
-                                >
-                                  View
-                                </Button>
-                              ) : (
-                                <span className="text-muted">Not available</span>
-                              )}
-                            </td>
+                            <td>{caseItem.nextHearing}</td>
                             <td>
                               <Button 
                                 variant="link" 
@@ -223,7 +138,7 @@ function ClientCases() {
                           <Button 
                             variant="outline-primary" 
                             size="sm" 
-                            href={ev.path} 
+                            href={ev.evidencePath} 
                             target="_blank" 
                             rel="noopener noreferrer"
                           >
@@ -241,7 +156,7 @@ function ClientCases() {
                   <ListGroup>
                     {selectedCase.witnesses.map(w => (
                       <ListGroup.Item key={w.id} className="mb-2 border rounded">
-                        <div><strong>Name:</strong> {w.name}</div>
+                        <div><strong>Name:</strong> {w.firstName} {w.lastName}</div>
                         <div><strong>CNIC:</strong> {w.cnic}</div>
                         <div><strong>Phone:</strong> {w.phone}</div>
                         <div><strong>Email:</strong> {w.email}</div>
@@ -279,7 +194,7 @@ function ClientCases() {
                 <h6 className="text-muted mb-2">Verdict</h6>
                 <p className="mb-0">{decisionCase.finalDecision?.verdict || '-'}</p>
               </div>
-        </div>
+            </div>
           )}
         </Modal.Body>
         <Modal.Footer>
@@ -296,7 +211,7 @@ function ClientCases() {
           {historyCase && (
             <div className="p-3">
               <div className="timeline">
-                {historyCase.caseHistory.map((h, idx) => (
+                {historyCase.history.map((h, idx) => (
                   <div key={idx} className="timeline-item mb-3">
                     <div className="timeline-date text-muted mb-1">{h.date}</div>
                     <div className="timeline-content p-2 bg-light rounded">
@@ -304,8 +219,8 @@ function ClientCases() {
                     </div>
                   </div>
                 ))}
-        </div>
-      </div>
+              </div>
+            </div>
           )}
         </Modal.Body>
         <Modal.Footer>
