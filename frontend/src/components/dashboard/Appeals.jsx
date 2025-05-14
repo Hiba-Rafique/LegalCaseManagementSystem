@@ -1,13 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Table, InputGroup, Form, Row, Col, Badge, Button, Modal } from 'react-bootstrap';
 import { Search, PlusCircle } from 'lucide-react';
-
-const initialAppeals = [
-  { date: '05/10/2025', caseName: 'Innovate LLC Patent Dispute', type: 'Civil', status: 'Open', court: 'Appellate Court', result: 'N/A', resultDate: '' },
-  { date: '05/02/2025', caseName: 'Smith v. Jones Construction', type: 'Criminal', status: 'Pending', court: 'Supreme Court', result: 'N/A', resultDate: '' },
-  { date: '04/28/2025', caseName: 'Acme Corp v. Beta Innovations', type: 'Civil', status: 'Closed', court: 'Appellate Court', result: 'Granted', resultDate: '' },
-  { date: '04/20/2025', caseName: 'Chen Family Trust Admin', type: 'Probate', status: 'Closed', court: 'Probate Appeals', result: 'Denied', resultDate: '' },
-];
 
 const statusVariants = {
   'Open': 'primary',
@@ -18,7 +11,9 @@ const statusVariants = {
 const Appeals = () => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
-  const [appeals, setAppeals] = useState(initialAppeals);
+  const [appeals, setAppeals] = useState([]);
+  const [loading, setLoading] = useState(true);  // Track loading state
+  const [error, setError] = useState(null);  // Track error state
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     caseName: '',
@@ -27,31 +22,74 @@ const Appeals = () => {
     description: ''
   });
 
+  useEffect(() => {
+    // Fetch appeals data from the API
+    const fetchAppeals = async () => {
+      try {
+        const response = await fetch('/api/appeals');
+        if (!response.ok) {
+          throw new Error('Failed to fetch appeals');
+        }
+        const data = await response.json();
+        setAppeals(data.appeals);  // Update state with fetched data
+      } catch (error) {
+        setError(error.message);  // Set error state if request fails
+      } finally {
+        setLoading(false);  // Set loading to false after data is fetched
+      }
+    };
+
+    fetchAppeals();
+  }, []);
+
   const filteredAppeals = useMemo(() => {
     return appeals.filter(a => {
       const matchesSearch =
-        a.caseName.toLowerCase().includes(search.toLowerCase()) ||
+        a.casename.toLowerCase().includes(search.toLowerCase()) ||
         a.type.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = status === 'All' || a.status === status;
       return matchesSearch && matchesStatus;
     });
   }, [search, status, appeals]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newAppeal = {
-      date: new Date().toLocaleDateString(),
-      caseName: formData.caseName,
-      type: formData.type,
-      status: 'Open',
-      court: formData.court,
-      result: 'N/A',
-      resultDate: ''
-    };
-    setAppeals([newAppeal, ...appeals]);
-    setShowModal(false);
-    setFormData({ caseName: '', type: '', court: '', description: '' });
+    try {
+      const response = await fetch('/api/appeals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          casename: formData.caseName,
+          casetype: formData.type,
+          court: formData.court,
+          description: formData.description
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create appeal');
+      }
+
+      const data = await response.json();
+
+      // If successful, update the state
+      setAppeals([data.appeal, ...appeals]);
+      setShowModal(false);
+      setFormData({ caseName: '', type: '', court: '', description: '' });
+    } catch (error) {
+      setError(error.message);
+    }
   };
+
+  if (loading) {
+    return <div>Loading...</div>;  // Show loading state while data is being fetched
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;  // Show error message if there's an issue with the fetch
+  }
 
   return (
     <Row className="justify-content-center align-items-start py-4 px-2 px-md-4">
@@ -113,14 +151,14 @@ const Appeals = () => {
                     filteredAppeals.map((a, idx) => (
                       <tr key={idx}>
                         <td>{a.date}</td>
-                        <td>{a.caseName}</td>
+                        <td>{a.casename}</td>
                         <td>{a.type}</td>
                         <td>
                           <Badge bg={statusVariants[a.status] || 'secondary'} className="px-3 py-1 fs-6">
                             {a.status}
                           </Badge>
                         </td>
-                        <td>{a.court}</td>
+                        <td>{a.courtname}</td>  {/* Displaying the court name */}
                         <td>{a.result}</td>
                         <td>{a.resultDate}</td>
                       </tr>
@@ -196,4 +234,4 @@ const Appeals = () => {
   );
 };
 
-export default Appeals; 
+export default Appeals;

@@ -127,15 +127,6 @@ const Billing = ({ payments = [], onCreatePayment }) => {
           </Modal.Header>
           <Form onSubmit={handleSubmit}>
             <Modal.Body>
-              <Form.Group className="mb-3">
-                <Form.Label>Case Name</Form.Label>
-                <Form.Select value={form.casename} onChange={handleCaseChange} required>
-                  <option value="">Select case</option>
-                  {courtPayments.map((c, idx) => (
-                    <option key={idx} value={c.casename}>{c.casename}</option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
               {courtPaymentData && (
                 <>
                   <Form.Group className="mb-3">

@@ -1,30 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Form, Modal, Badge } from 'react-bootstrap';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 
 const RegistrarHearingSchedule = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingHearing, setEditingHearing] = useState(null);
-  const [hearings, setHearings] = useState([
-    {
-      id: 1,
-      caseName: 'State v. Smith',
-      date: '2024-03-20',
-      time: '10:00',
-      venue: 'Court Room 101',
-      judge: 'Judge Judy',
-      status: 'Scheduled'
-    },
-    {
-      id: 2,
-      caseName: 'People v. Doe',
-      date: '2024-03-21',
-      time: '14:30',
-      venue: 'Court Room 102',
-      judge: 'Judge Dredd',
-      status: 'Pending'
-    }
-  ]);
+  const [hearings, setHearings] = useState([]);
+
+  useEffect(() => {
+    // Fetch hearings from the backend when the component loads
+    const fetchHearings = async () => {
+      try {
+        const response = await fetch('/api/hearings');
+        const data = await response.json();
+        setHearings(data.hearings);
+      } catch (error) {
+        console.error('Error fetching hearings:', error);
+      }
+    };
+    fetchHearings();
+  }, []);
 
   const [hearingForm, setHearingForm] = useState({
     caseName: '',
@@ -94,19 +89,19 @@ const RegistrarHearingSchedule = () => {
               </thead>
               <tbody>
                 {hearings.map((hearing) => (
-                  <tr key={hearing.id}>
-                    <td>{hearing.caseName}</td>
-                    <td>{hearing.date}</td>
-                    <td>{hearing.time}</td>
-                    <td>{hearing.venue}</td>
-                    <td>{hearing.judge}</td>
+                  <tr key={hearing.hearingid}>
+                    <td>{hearing.caseName || 'N/A'}</td>
+                    <td>{hearing.hearingdate || 'N/A'}</td>
+                    <td>{hearing.hearingtime || 'N/A'}</td>
+                    <td>{hearing.courtroomid || 'N/A'}</td>
+                    <td>{hearing.judge || 'N/A'}</td>
                     <td>
                       <Badge bg={
                         hearing.status === 'Scheduled' ? 'success' :
                         hearing.status === 'Pending' ? 'warning' :
                         'secondary'
                       }>
-                        {hearing.status}
+                        {hearing.status || 'N/A'}
                       </Badge>
                     </td>
                     <td>
@@ -115,7 +110,7 @@ const RegistrarHearingSchedule = () => {
                         size="sm"
                         onClick={() => handleEdit(hearing)}
                       >
-                        {hearing.venue ? 'Edit Venue' : 'Add Venue'}
+                        {hearing.courtroomid ? 'Edit Venue' : 'Add Venue'}
                       </Button>
                     </td>
                   </tr>
@@ -129,7 +124,7 @@ const RegistrarHearingSchedule = () => {
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>
-            {editingHearing && editingHearing.venue ? 'Edit Venue' : 'Add Venue'}
+            {editingHearing && editingHearing.courtroomid ? 'Edit Venue' : 'Add Venue'}
           </Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
@@ -199,7 +194,7 @@ const RegistrarHearingSchedule = () => {
               Cancel
             </Button>
             <Button variant="primary" type="submit">
-              {editingHearing && editingHearing.venue ? 'Update Venue' : 'Add Venue'}
+              {editingHearing && editingHearing.courtroomid ? 'Update Venue' : 'Add Venue'}
             </Button>
           </Modal.Footer>
         </Form>
@@ -208,4 +203,4 @@ const RegistrarHearingSchedule = () => {
   );
 };
 
-export default RegistrarHearingSchedule; 
+export default RegistrarHearingSchedule;

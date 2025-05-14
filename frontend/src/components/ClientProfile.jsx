@@ -23,10 +23,53 @@ function ClientProfile() {
   const [error, setError] = useState(null);
   const fileInputRef = useRef();
 
+  // API Calls
+  const fetchClientProfile = async () => {
+    const res = await fetch('/api/clientprofile', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('userToken')}`,
+      },
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) throw new Error(result.message || 'Failed to load profile');
+    return result.data;
+  };
+
+  const updateClientProfile = async (data) => {
+    const res = await fetch('/api/clientprofile', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('userToken')}`,
+      },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) throw new Error(result.message || 'Failed to update profile');
+    return result;
+  };
+
+  // Fetch profile on mount
   useEffect(() => {
-    // Load profile from localStorage or API if needed
-    const stored = localStorage.getItem('clientProfile');
-    if (stored) setProfile(JSON.parse(stored));
+    const storedImage = localStorage.getItem(PROFILE_IMAGE_KEY);
+    if (storedImage) setProfileImage(storedImage);
+
+    const loadProfile = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchClientProfile();
+        setProfile(data);
+        localStorage.setItem('clientProfile', JSON.stringify(data));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
   }, []);
 
   const handleChange = (e) => {
@@ -39,10 +82,15 @@ function ClientProfile() {
       const url = URL.createObjectURL(file);
       setProfileImage(url);
       localStorage.setItem(PROFILE_IMAGE_KEY, url);
+      // Optionally: upload image to backend
     }
   };
 
-  const handleEdit = () => setIsEditing(true);
+  const handleEdit = () => {
+    setIsEditing(true);
+    setError(null);
+  };
+
   const handleCancel = () => {
     setIsEditing(false);
     setError(null);
@@ -50,14 +98,18 @@ function ClientProfile() {
     if (stored) setProfile(JSON.parse(stored));
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await updateClientProfile(profile);
       setIsEditing(false);
       localStorage.setItem('clientProfile', JSON.stringify(profile));
-    }, 1000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -96,7 +148,9 @@ function ClientProfile() {
               <h5 className="mb-0">{profile.firstname} {profile.lastname}</h5>
               <div className="text-muted small">{profile.email}</div>
             </div>
+
             {error && <Alert variant="danger">{error}</Alert>}
+
             <Form onSubmit={handleSave}>
               <Row className="g-3">
                 <Col md={6}>
@@ -204,6 +258,7 @@ function ClientProfile() {
                   </Form.Group>
                 </Col>
               </Row>
+
               <div className="d-flex justify-content-end gap-2 mt-4">
                 {isEditing ? (
                   <>
@@ -224,4 +279,4 @@ function ClientProfile() {
   );
 }
 
-export default ClientProfile; 
+export default ClientProfile;

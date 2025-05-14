@@ -30,7 +30,7 @@ const JudgeProfile = () => {
 
     const fetchProfile = async () => {
       try {
-        const res = await fetch('/api/judge/profile', {
+        const res = await fetch('/api/judgeprofile', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -45,7 +45,7 @@ const JudgeProfile = () => {
         setProfileData({
           firstName: data.firstName || '',
           lastName: data.lastName || '',
-          name: data.name || '',
+          name: data.firstName + " " + data.lastName|| '',
           email: data.email || '',
           phone: data.phone || '',
           specialization: data.specialization || '',
@@ -82,7 +82,7 @@ const JudgeProfile = () => {
 
   const handleSave = async () => {
     try {
-      const res = await fetch('/api/judge/profile', {
+      const res = await fetch('/api/judgeprofile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

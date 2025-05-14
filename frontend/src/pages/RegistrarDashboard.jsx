@@ -55,24 +55,23 @@ const mockRooms = [
 const RegistrarDashboard = () => {
   // Courts state
   const [courts, setCourts] = useState([]);
+const [selectedCourt, setSelectedCourt] = useState(null);
+const [loadingCourts, setLoadingCourts] = useState(true);
+const [courtError, setCourtError] = useState('');
   const [showCourtModal, setShowCourtModal] = useState(false);
   const [courtForm, setCourtForm] = useState({ name: '', location: '', type: '' });
   const [editingCourt, setEditingCourt] = useState(null);
-  const [selectedCourt, setSelectedCourt] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchCourt, setSearchCourt] = useState('');
+  
 
   // Toast state
   const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
 
   // Court management state
-  const [courtRooms, setCourtRooms] = useState([
-    { id: 1, number: '101', name: 'Justice Hall A', capacity: 75, type: 'Trial Room', status: 'Available' },
-    { id: 2, number: '102', name: 'Deliberation Chamber', capacity: 30, type: 'Hearing Room', status: 'Occupied' },
-    { id: 3, number: '201', name: 'Mediation Suite', capacity: 15, type: 'Conference Room', status: 'Maintenance' },
-    { id: 4, number: '202', name: 'Justice Hall B', capacity: 75, type: 'Trial Room', status: 'Available' },
-    { id: 5, number: '301', name: ",Judge Miller's Chambers", capacity: 5, type: 'Chambers', status: 'Reserved' },
-  ]);
+  const [courtRooms, setCourtRooms] = useState([]);
+const [loadingRooms, setLoadingRooms] = useState(true);
+const [roomError, setRoomError] = useState('');
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [roomForm, setRoomForm] = useState({ number: '', name: '', capacity: '', type: '', status: '' });
   const [editingRoom, setEditingRoom] = useState(null);
@@ -140,62 +139,40 @@ const RegistrarDashboard = () => {
     paymentDate: '',
     status: 'Pending'
   });
+
+
+  
   const [courtAppeals, setCourtAppeals] = useState([]);
-  const [courtCases, setCourtCases] = useState([
-    { 
-      id: 1,
-      title: 'State v. Smith',
-      description: 'Criminal case involving theft',
-      caseType: 'Criminal',
-      filingDate: '2024-01-15',
-      status: 'Open',
-      prosecutor: 'Alex Mason',
-      lawyerName: 'John Doe',
-      clientName: 'Jane Smith',
-      judgeName: 'Judge Judy',
-    },
-    { 
-      id: 2,
-      title: 'People v. Doe',
-      description: 'Civil case regarding property dispute',
-      caseType: 'Civil',
-      filingDate: '2024-02-01',
-      status: 'Pending',
-      prosecutor: 'Sam Fisher',
-      lawyerName: 'John Doe',
-      clientName: 'John Doe',
-      judgeName: 'Judge Dredd',
-    },
-    { 
-      id: 3,
-      title: 'Acme Corp v. Beta',
-      description: 'Corporate case about contract breach',
-      caseType: 'Corporate',
-      filingDate: '2024-01-20',
-      status: 'Closed',
-      prosecutor: 'Lara Croft',
-      lawyerName: 'Bilal Ahmed',
-      clientName: 'Acme Corp',
-      judgeName: 'Judge Amy',
-    },
-    {
-      id: 4,
-      title: 'Ali v. State',
-      description: 'Mock case for judge assignment',
-      caseType: 'Criminal',
-      filingDate: '2024-03-10',
-      status: 'Pending',
-      prosecutor: 'Alex Mason',
-      lawyerName: 'Ali Khan',
-      clientName: 'Ali Khan',
-      judgeName: '', // No judge assigned
-    },
-  ]);
+  const [courtCases, setCourtCases] = useState([]);
+  const [errorCases, setErrorCases] = useState(null);
+  const [loadingCases, setLoadingCases] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch court cases for CourtRegistrar role
+  useEffect(() => {
+  const fetchCourtCases = async () => {
+    try {
+      const response = await fetch('/api/cases');
+      if (!response.ok) {
+        throw new Error('Failed to fetch cases');
+      }
+      const data = await response.json();
+      setCourtCases(data.cases);
+      setLoadingCases(false); 
+    } catch (err) {
+      setError(err.message);
+      setLoadingCases(false); 
+    }
+  };
+
+  fetchCourtCases();
+}, []);
+
   const [searchCase, setSearchCase] = useState('');
 
   // Loading state
   const [loading, setLoading] = useState(false);
-  // Confirmation dialog state
+  
   const [confirm, setConfirm] = useState({ show: false, type: '', payload: null });
 
   // Add state for tab selection
@@ -305,6 +282,82 @@ const RegistrarDashboard = () => {
       judgeName: 'Judge Amy',
     }
   ]);
+useEffect(() => {
+  setLoadingCourts(true);
+  fetch('/api/court', {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Failed to fetch court');
+      }
+      return res.json();
+    })
+    .then((response) => {
+      const court = response.data;
+      setSelectedCourt(court);
+      setLoadingCourts(false);
+    })
+    .catch((err) => {
+      console.error('Error fetching court:', err.message);
+      setCourtError('Could not load court details.');
+      setLoadingCourts(false);
+    });
+}, []);
+
+useEffect(() => {
+  if (selectedPage === 'courtRooms' && selectedCourt?.id) {
+    setLoadingRooms(true);
+    fetch(`/api/courtrooms/${selectedCourt.id}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to fetch courtrooms');
+        return res.json();
+      })
+      .then((response) => {
+        setCourtRooms(response.data || []);
+        setLoadingRooms(false);
+      })
+      .catch((err) => {
+        console.error('Error fetching courtrooms:', err.message);
+        setRoomError('Could not load court rooms.');
+        setLoadingRooms(false);
+      });
+  }
+}, [selectedPage, selectedCourt]);
+
+
+const fetchCourtRooms = (courtId) => {
+  setLoadingRooms(true);
+  fetch(`/api/courtrooms/${courtId}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error('Failed to fetch courtrooms');
+      return res.json();
+    })
+    .then((response) => {
+      setCourtRooms(response.data || []);
+      setLoadingRooms(false);
+    })
+    .catch((err) => {
+      console.error('Error fetching courtrooms:', err.message);
+      setRoomError('Could not load court rooms.');
+      setLoadingRooms(false);
+    });
+};
+
+
   const filteredCases = courtCases.filter(c => {
     if (!searchCase.trim()) return true;
     return (
@@ -495,7 +548,7 @@ const RegistrarDashboard = () => {
       appeals: courtAppeals,
       cases: courtCases,
     } : c));
-    setSelectedCourt(null);
+    setSelectedCourt();
     setActiveTab('dashboard');
     showToast('Court updated!');
   };
@@ -1038,18 +1091,29 @@ const RegistrarDashboard = () => {
                     <Card className="shadow-sm border-0 mb-4" style={{ borderRadius: 16 }}>
                       <Card.Body>
                         <h3 className="fw-bold mb-3" style={{ color: '#22304a' }}><i className="bi bi-bank2 me-2"></i>Assigned Court Details</h3>
-                                <div className="mb-3">
-                          <img src={mockCourt.image} alt="court" style={{ width: '100%', borderRadius: 12, objectFit: 'cover', maxHeight: 180 }} />
-                                </div>
-                        <h4 className="fw-bold mb-2">{mockCourt.name}</h4>
-                        <Row className="mb-2">
-                          <Col md={6}><i className="bi bi-geo-alt me-1"></i> <b>Location:</b> {mockCourt.location}</Col>
-                          <Col md={6}><i className="bi bi-building me-1"></i> <b>Court ID:</b> {mockCourt.courtId}</Col>
-                        </Row>
-                        <Row className="mb-2">
-                          <Col md={6}><i className="bi bi-telephone me-1"></i> <b>Phone:</b> {mockCourt.phone}</Col>
-                          <Col md={6}><i className="bi bi-envelope me-1"></i> <b>Email:</b> {mockCourt.email}</Col>
-                        </Row>
+                                
+            {loadingCourts ? (
+  <div className="text-center py-4">
+    <Spinner animation="border" variant="primary" />
+    <div>Loading court data...</div>
+  </div>
+) : courtError ? (
+  <div className="alert alert-danger">{courtError}</div>
+) : selectedCourt ? (
+  <>
+    <div className="mb-3">
+      <img src={lawImage} alt="court" style={{ width: '100%', borderRadius: 12, objectFit: 'cover', maxHeight: 180 }} />
+    </div>
+    <h4 className="fw-bold mb-2">{selectedCourt.courtname}</h4>
+    <Row className="mb-2">
+      <Col md={6}><i className="bi bi-geo-alt me-1"></i> <b>Location:</b> {selectedCourt.location}</Col>
+      <Col md={6}><i className="bi bi-building me-1"></i> <b>Type:</b> {selectedCourt.type}</Col>
+    </Row>
+  </>
+) : (
+  <p className="text-muted">No court assigned.</p>
+)}
+
                         <div className="text-muted mt-2" style={{ fontSize: 15 }}>
                           This is your primary assigned courthouse. For details on other assignments, please check your profile or contact administration.
                         </div>
@@ -1133,134 +1197,129 @@ const RegistrarDashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRooms.map((room, i) => (
-                          <tr key={i}>
-                            <td>{room.number}</td>
-                            <td>{room.capacity}</td>
-                            <td>
-                              {room.status === 'Available' && <span className="badge bg-primary">Available</span>}
-                              {room.status === 'Occupied' && <span className="badge bg-danger">Occupied</span>}
-                              {room.status === 'Maintenance' && <span className="badge bg-secondary">Maintenance</span>}
-                              {room.status === 'Reserved' && <span className="badge bg-info text-dark">Reserved</span>}
-                            </td>
-                            <td>
-                              <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomView(room)}><Eye size={16} /></Button>
-                              <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomEdit(room)}><Edit2 size={16} /></Button>
-                              <Button variant="outline-danger" size="sm" className="p-1 lh-1" onClick={() => handleRoomDelete(room)}><Trash2 size={16} /></Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+  {loadingRooms ? (
+    <tr>
+      <td colSpan={4} className="text-center py-4">
+        <Spinner animation="border" variant="primary" />
+        <div>Loading rooms...</div>
+      </td>
+    </tr>
+  ) : roomError ? (
+    <tr>
+      <td colSpan={4} className="text-danger text-center py-4">{roomError}</td>
+    </tr>
+  ) : courtRooms.length === 0 ? (
+    <tr>
+      <td colSpan={4} className="text-muted text-center py-4">No court rooms found.</td>
+    </tr>
+  ) : (
+    courtRooms.map((room, i) => (
+      <tr key={i}>
+        <td>{room.number}</td>
+        <td>{room.capacity}</td>
+        <td>
+          <span className={`badge ${room.status ? 'bg-primary' : 'bg-danger'}`}>
+            {room.status ? 'Available' : 'Occupied'}
+          </span>
+        </td>
+        <td>
+          <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomView(room)}><Eye size={16} /></Button>
+          <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomEdit(room)}><Edit2 size={16} /></Button>
+          <Button variant="outline-danger" size="sm" className="p-1 lh-1" onClick={() => handleRoomDelete(room)}><Trash2 size={16} /></Button>
+        </td>
+      </tr>
+    ))
+  )}
+</tbody>
+
                     </table>
                   </div>
                 </Card.Body>
               </Card>
-            )}
-            {selectedPage === 'cases' && (
-              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-file-earmark-text me-2"></i>Case Management</h2>
-                      <div className="text-muted mb-2">View and manage cases in your court.</div>
-                    </div>
-                  </div>
-                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
-                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
-                    <Form.Control placeholder="Search cases..." value={searchCase} onChange={e => setSearchCase(e.target.value)} />
-                  </InputGroup>
-                  <div className="table-responsive">
-                    <Table hover className="align-middle mb-0">
-                      <thead className="table-light">
-                        <tr>
-                          <th>Case Name</th>
-                          <th>Type</th>
-                          <th>Filing Date</th>
-                          <th>Client</th>
-                          <th>Lawyer</th>
-                          <th>Prosecutor</th>
-                          <th>Judge</th>
-                          <th>Status</th>
-                          <th>Final Decision</th>
-                          <th>Case History</th>
-                          <th>Actions</th>
-                          <th>Verify</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredCases.length === 0 ? (
-                          <tr>
-                            <td colSpan={11} className="text-center text-muted py-4">No cases found.</td>
-                          </tr>
-                        ) : (
-                          filteredCases.map((case_) => (
-                            <tr key={case_.id}>
-                            <td>{case_.title}</td>
-                            <td>{case_.caseType}</td>
-                            <td>{case_.filingDate}</td>
-                              <td>{case_.clientName}</td>
-                              <td>{case_.lawyerName}</td>
-                              <td>{case_.prosecutor}</td>
-                              <td>{case_.judgeName}</td>
-                              <td>
-                                <Badge bg={
-                                  case_.status === 'Open' ? 'success' :
-                                  case_.status === 'Pending' ? 'warning' :
-                                  'secondary'
-                                } className="px-3 py-1 fs-6">
-                                  {case_.status}
-                                </Badge>
-                            </td>
-                            <td>
-                                {case_.status === 'Closed' ? (
-                                  <Button variant="link" size="sm" onClick={() => { setSelectedCase(case_); setShowFinalDecisionModal(true); }}>View</Button>
-                                ) : (
-                                  <span className="text-muted">-</span>
-                                )}
-                              </td>
-                              <td>
-                                <Button variant="link" size="sm" onClick={() => { setViewingCase(case_); setShowCaseViewModal(true); }}>View</Button>
-                              </td>
-                              <td>
-                                <div className="d-flex gap-2">
-                                  <Button 
-                                    variant="outline-primary" 
-                                    size="sm"
-                                    onClick={() => {
-                                      setEditingCase(case_);
-                                      setCaseForm(case_);
-                                      setShowCaseModal(true);
-                                    }}
-                                  >
-                                    Edit
-                                  </Button>
-                                  <Button 
-                                    variant="outline-danger" 
-                                    size="sm"
-                                    onClick={() => handleDeleteCase(case_.id)}
-                                  >
-                                    Delete
-                                  </Button>
-                                </div>
-                              </td>
-                              <td>
-                                {!case_.judgeName && (
-                                  <Button variant="success" size="sm" onClick={() => {
-                                    setEditingCase(case_);
-                                    setCaseForm(case_);
-                                    setShowCaseModal(true);
-                                  }}>Verify</Button>
-                                )}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </Table>
-                  </div>
-                </Card.Body>
-              </Card>
-            )}
+            )}{selectedPage === 'cases' && (
+  <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+    <Card.Body>
+      {/* Header Section */}
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-file-earmark-text me-2"></i>Case Management</h2>
+          <div className="text-muted mb-2">View and manage cases in your court.</div>
+        </div>
+      </div>
+
+      {/* Search Box */}
+      <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+        <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+        <Form.Control placeholder="Search cases..." value={searchCase} onChange={e => setSearchCase(e.target.value)} />
+      </InputGroup>
+
+      {/* Loading and Error Handling */}
+      {loadingCases ? (
+        <div>Loading...</div>
+      ) : errorCases ? (
+        <div>Error: {errorCases}</div>
+      ) : (
+        <div className="table-responsive">
+          <Table hover className="align-middle mb-0">
+            <thead className="table-light">
+              <tr>
+                <th>Case Name</th>
+                <th>Type</th>
+                <th>Filing Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {courtCases.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center text-muted py-4">No cases found.</td>
+                </tr>
+              ) : (
+                courtCases.map((case_) => (
+                  <tr key={case_.caseid}>
+                    <td>{case_.title}</td>
+                    <td>{case_.casetype}</td>
+                    <td>{case_.filingdate}</td>
+                    <td>
+                      <Badge bg={case_.status === 'In Progress' ? 'warning' : case_.status === 'Closed' ? 'success' : 'secondary'} className="px-3 py-1 fs-6">
+                        {case_.status}
+                      </Badge>
+                    </td>
+                    <td>
+                      <div className="d-flex gap-2">
+                        <Button 
+                          variant="outline-primary" 
+                          size="sm"
+                          onClick={() => {
+                            setEditingCase(case_);
+                            setCaseForm(case_);
+                            setShowCaseModal(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button 
+                          variant="outline-danger" 
+                          size="sm"
+                          onClick={() => handleDeleteCase(case_.caseid)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </Table>
+        </div>
+      )}
+    </Card.Body>
+  </Card>
+)}
+
+          
             {selectedPage === 'hearingSchedule' && (
               <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
                 <Card.Body style={{ padding: 0 }}>

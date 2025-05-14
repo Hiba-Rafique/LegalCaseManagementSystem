@@ -1,15 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Button } from 'react-bootstrap';
 
-const mockHistory = [
-  { id: 1, date: '2024-05-01', event: 'Filing', remarks: 'Case filed in court.' },
-  { id: 2, date: '2024-05-10', event: 'Hearing', remarks: 'First hearing scheduled.' },
-  { id: 3, date: '2024-05-15', event: 'Adjournment', remarks: 'Hearing adjourned.' },
-];
-
-const CaseHistory = () => {
+const CaseHistory = ({ historyCase }) => {
+  const [caseHistory, setCaseHistory] = useState([]);
   const [fallbackWarning, setFallbackWarning] = useState("");
-  let historyData = mockHistory;
+
+  useEffect(() => {
+    const fetchCaseHistory = async () => {
+      if (historyCase && historyCase.id) {
+        try {
+          const res = await fetch(`/api/cases/${historyCase.id}/history`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include'
+          });
+
+          if (!res.ok) throw new Error('Failed to fetch case history');
+
+          const data = await res.json();
+
+          if (data && Array.isArray(data.history)) {
+            setCaseHistory(data.history);
+          } else {
+            setCaseHistory([]);
+            setFallbackWarning("No case history available.");
+          }
+        } catch (err) {
+          console.error('Failed to fetch case history:', err);
+          setCaseHistory([]);
+          setFallbackWarning("Error fetching case history.");
+        }
+      }
+    };
+
+    fetchCaseHistory();
+  }, [historyCase]);  // Dependency on historyCase
 
   return (
     <div className="container py-4">
@@ -29,18 +56,24 @@ const CaseHistory = () => {
               </tr>
             </thead>
             <tbody>
-              {historyData.map(h => (
-                <tr key={h.id}>
-                  <td>{h.date}</td>
-                  <td>{h.event}</td>
-                  <td>{h.remarks}</td>
-                  <td>
-                    <Button size="sm" variant="primary" className="me-1">Edit</Button>
-                    <Button size="sm" variant="info" className="me-1">View</Button>
-                    <Button size="sm" variant="secondary">Download</Button>
-                  </td>
+              {caseHistory.length > 0 ? (
+                caseHistory.map(h => (
+                  <tr key={h.id}>
+                    <td>{h.date}</td>
+                    <td>{h.event}</td>
+                    <td>{h.remarks}</td>
+                    <td>
+                      <Button size="sm" variant="primary" className="me-1">Edit</Button>
+                      <Button size="sm" variant="info" className="me-1">View</Button>
+                      <Button size="sm" variant="secondary">Download</Button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="text-center">No case history found</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </Table>
         </Card.Body>
@@ -49,4 +82,4 @@ const CaseHistory = () => {
   );
 };
 
-export default CaseHistory; 
+export default CaseHistory;

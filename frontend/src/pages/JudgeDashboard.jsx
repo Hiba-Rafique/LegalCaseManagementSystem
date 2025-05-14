@@ -258,7 +258,7 @@ function JudgeDashboard() {
   useEffect(() => {
     const fetchJudgeData = async () => {
       try {
-        const response = await fetch('/api/judge/dashboard', {
+        const response = await fetch('/api/judgeprofile', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

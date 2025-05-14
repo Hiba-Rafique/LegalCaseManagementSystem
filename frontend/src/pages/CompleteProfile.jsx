@@ -35,7 +35,6 @@ const getRoleFields = (role) => {
 const CompleteProfile = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  // Assume role is passed via navigation state or fallback to 'Client'
   const role = location.state?.role || 'Client';
   const [form, setForm] = useState({});
   const [error, setError] = useState(null);
@@ -70,7 +69,7 @@ const CompleteProfile = () => {
       for (const field of fields) {
         const value = form[field.name];
         if (field.required && (!value || value.trim() === '')) {
-          setError(`${field.label} is required.`);
+          setError('${field.label} is required.');
           return false;
         }
       }
@@ -95,8 +94,33 @@ const CompleteProfile = () => {
     e.preventDefault();
     if (!validateStep()) return;
     setIsLoading(true);
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      // Prepare the profile data to send to the backend
+      const normalizedRole = role.toLowerCase();
+const profileData = {
+  ...form,
+  role: normalizedRole, // Normalize the role to lowercase here
+};
+
+
+      // Make the API call
+      const response = await fetch('/api/complete-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('userToken')}`
+        },
+        body: JSON.stringify(profileData)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error('Profile completion failed');
+      }
+
+      // Navigate based on role
       if (role === 'CourtRegistrar') {
         navigate('/register-court');
       } else if (role === 'Lawyer') {
@@ -112,6 +136,8 @@ const CompleteProfile = () => {
       }
     } catch (err) {
       setError('Profile completion failed. Please try again.');
+      console.error('Error:', err);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -213,29 +239,9 @@ const CompleteProfile = () => {
             )}
           </div>
         </Form>
-        <style>{`
-          .signup-form-card .form-group,
-          .signup-form-card .mb-4,
-          .signup-form-card .mb-3,
-          .signup-form-card .form-label,
-          .signup-form-card .form-control,
-          .signup-form-card .btn,
-          .signup-form-card .alert,
-          .signup-form-card .small {
-            margin-bottom: 0.65rem !important;
-          }
-          .signup-form-card .form-group:last-child,
-          .signup-form-card .mb-4:last-child,
-          .signup-form-card .mb-3:last-child {
-            margin-bottom: 0 !important;
-          }
-          .signup-form-card {
-            padding-top: 1.2em !important;
-          }
-        `}</style>
       </div>
     </div>
   );
 };
 
-export default CompleteProfile; 
+export default CompleteProfile;

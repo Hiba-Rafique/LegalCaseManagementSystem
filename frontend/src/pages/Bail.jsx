@@ -1,19 +1,80 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Modal, Form } from 'react-bootstrap';
 
-const mockBails = [
-  { id: 1, bailstatus: 'Pending', bailamount: 5000, baildate: '2024-06-01', remarks: 'Awaiting approval', bailcondition: 'Passport submission', caseName: 'Mock Case 1' },
-  { id: 2, bailstatus: 'Approved', bailamount: 10000, baildate: '2024-06-05', remarks: 'Approved by judge', bailcondition: 'Weekly check-in', caseName: 'Mock Case 2' },
-];
-
 const Bail = () => {
+  const [bailData, setBailData] = useState([]);
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ bailstatus: '', bailamount: '', baildate: '', remarks: '', bailcondition: '', caseName: '' });
+  const [form, setForm] = useState({
+    bailstatus: '',
+    bailamount: '',
+    baildate: '',
+    remarks: '',
+    bailcondition: '',
+    caseName: ''
+  });
   const [fallbackWarning, setFallbackWarning] = useState("");
-  let bailData = mockBails;
 
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-  const handleSubmit = e => { e.preventDefault(); setShow(false); };
+  useEffect(() => {
+    const fetchBails = async () => {
+      try {
+        const response = await fetch('/api/bails', {
+          credentials: 'include'
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch bails');
+
+        const data = await response.json();
+
+        setBailData(
+          data.bails.map(b => ({
+            id: b.bailid,
+            caseid: b.caseid,
+            bailstatus: b.bailstatus,
+            bailamount: b.bailamount,
+            baildate: b.baildate,
+            remarks: b.remarks,
+            bailcondition: b.bailcondition,
+            caseName: `Case #${b.caseid}`
+          }))
+        );
+      } catch (err) {
+        console.error(err);
+        setFallbackWarning("Failed to load live bail data. Showing mock data.");
+        setBailData([
+          {
+            id: 1,
+            bailstatus: 'Pending',
+            bailamount: 5000,
+            baildate: '2024-06-01',
+            remarks: 'Awaiting approval',
+            bailcondition: 'Passport submission',
+            caseName: 'Mock Case 1'
+          },
+          {
+            id: 2,
+            bailstatus: 'Approved',
+            bailamount: 10000,
+            baildate: '2024-06-05',
+            remarks: 'Approved by judge',
+            bailcondition: 'Weekly check-in',
+            caseName: 'Mock Case 2'
+          }
+        ]);
+      }
+    };
+
+    fetchBails();
+  }, []);
+
+  const handleChange = e => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    setShow(false);
+    // TODO: Implement submit to backend
+  };
 
   return (
     <div className="container py-4">
@@ -58,8 +119,12 @@ const Bail = () => {
           </Table>
         </Card.Body>
       </Card>
+
+      {/* Request Bail Modal */}
       <Modal show={show} onHide={() => setShow(false)} centered>
-        <Modal.Header closeButton><Modal.Title>Request Bail</Modal.Title></Modal.Header>
+        <Modal.Header closeButton>
+          <Modal.Title>Request Bail</Modal.Title>
+        </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
             <Form.Group className="mb-3">
@@ -97,4 +162,4 @@ const Bail = () => {
   );
 };
 
-export default Bail; 
+export default Bail;

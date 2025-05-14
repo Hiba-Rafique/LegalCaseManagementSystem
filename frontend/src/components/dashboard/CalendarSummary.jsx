@@ -17,43 +17,31 @@ const CalendarSummary = () => {
   const [events, setEvents] = useState([]);
   const [showEventModal, setShowEventModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-
-  useEffect(() => {
-    const mockEvents = [
-      {
-        id: 1,
-        title: 'Court Hearing - Smith v. Jones',
-        date: moment().date(10),
-        time: '10:00 AM',
-        type: 'Court Date',
-        location: 'Courtroom 3B',
-        description: 'Initial hearing for Smith v. Jones case',
-        priority: 'high',
-        remarks: 'Bring all documents.'
-      },
-      {
-        id: 2,
-        title: 'Client Meeting - Sarah Chen',
-        date: moment().date(9),
-        time: '2:30 PM',
-        type: 'Meeting',
-        location: 'Office Conference Room',
-        description: 'Discuss case strategy',
-        priority: 'medium'
-      },
-      {
-        id: 3,
-        title: 'Document Filing Deadline',
-        date: moment().date(11),
-        time: '5:00 PM',
-        type: 'Deadline',
-        location: 'Online Portal',
-        description: 'Submit motion to dismiss',
-        priority: 'high'
+useEffect(() => {
+  fetch('/api/hearings', {
+    credentials: 'include', // Ensures session cookies are sent to Flask
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.hearings) {
+        const formattedEvents = data.hearings.map((h) => ({
+          id: h.hearingid,
+          title: `Court Hearing - ID ${h.hearingid}`,
+          date: moment(h.hearingdate),
+          time: h.hearingtime || 'TBD',
+          type: 'Court Date',
+          location: `Courtroom ${h.courtroomid || 'Unknown'}`,
+          description: `Hearing ID ${h.hearingid}`,
+          priority: 'high',
+          remarks: '' // Placeholder if needed
+        }));
+        setEvents(formattedEvents);
       }
-    ];
-    setEvents(mockEvents);
-  }, []);
+    })
+    .catch((err) => {
+      console.error('Error fetching hearings:', err);
+    });
+}, []);
 
   const getDaysInMonth = () => {
     const daysInMonth = currentDate.daysInMonth();

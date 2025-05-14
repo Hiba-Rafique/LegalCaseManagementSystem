@@ -1,1 +1,0 @@
-@log_action(action_type="Logout",entity_type="User")

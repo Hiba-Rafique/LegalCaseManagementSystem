@@ -1,18 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Modal, Form } from 'react-bootstrap';
-
-const mockEvidence = [
-  { id: 1, evidenceType: 'Document', description: 'Contract copy', submissionDate: '2024-06-10', caseName: 'Mock Case 1' },
-  { id: 2, evidenceType: 'Photo', description: 'Accident scene', submissionDate: '2024-06-12', caseName: 'Mock Case 2' },
-];
 
 const Evidence = () => {
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ evidenceType: '', description: '', submissionDate: '', caseName: '' });
-  const [evidence, setEvidence] = useState(mockEvidence);
+  const [form, setForm] = useState({
+    evidenceType: '',
+    description: '',
+    submissionDate: '',
+    caseName: ''
+  });
+  const [evidence, setEvidence] = useState([]);
+  const [error, setError] = useState('');
 
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-  const handleSubmit = e => { e.preventDefault(); setEvidence([{ ...form, id: Date.now() }, ...evidence]); setShow(false); };
+  // 🔹 Fetch evidence from Flask API when component mounts
+  useEffect(() => {
+    fetch('/api/lawyer/evidence', {
+      method: 'GET',
+      credentials: 'include', // Important for sessions/cookies
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message || 'Failed to fetch evidence');
+        }
+        return res.json();
+      })
+      .then((data) => {
+        const formatted = data.evidence.map((e) => ({
+          id: e.evidence_id,
+          evidenceType: e.evidencetype,
+          description: e.description,
+          submissionDate: e.submitteddate,
+          caseName: `Case #${e.case_id}`
+        }));
+        setEvidence(formatted);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(err.message);
+      });
+  }, []);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setEvidence([{ ...form, id: Date.now() }, ...evidence]);
+    setShow(false);
+  };
 
   return (
     <div className="container py-4">
@@ -22,6 +60,7 @@ const Evidence = () => {
           <Button variant="primary" onClick={() => setShow(true)}>Add Evidence</Button>
         </Card.Header>
         <Card.Body>
+          {error && <div className="text-danger mb-2">{error}</div>}
           <Table bordered hover>
             <thead className="table-light">
               <tr>
@@ -33,7 +72,7 @@ const Evidence = () => {
               </tr>
             </thead>
             <tbody>
-              {evidence.map(e => (
+              {evidence.map((e) => (
                 <tr key={e.id}>
                   <td>{e.evidenceType}</td>
                   <td>{e.description}</td>
@@ -50,8 +89,11 @@ const Evidence = () => {
           </Table>
         </Card.Body>
       </Card>
+
       <Modal show={show} onHide={() => setShow(false)} centered>
-        <Modal.Header closeButton><Modal.Title>Add Evidence</Modal.Title></Modal.Header>
+        <Modal.Header closeButton>
+          <Modal.Title>Add Evidence</Modal.Title>
+        </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
             <Form.Group className="mb-3">
@@ -81,4 +123,4 @@ const Evidence = () => {
   );
 };
 
-export default Evidence; 
+export default Evidence;
