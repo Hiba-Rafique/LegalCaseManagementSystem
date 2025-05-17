@@ -30,35 +30,66 @@ const RegistrarHearingSchedule = () => {
     status: 'Scheduled'
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (editingHearing) {
-      setHearings(hearings.map(h => 
-        h.id === editingHearing.id ? { ...h, ...hearingForm } : h
-      ));
-    } else {
-      setHearings([...hearings, { ...hearingForm, id: Date.now() }]);
+  // API call to update venue
+  const updateVenueApi = async (hearingid, venue) => {
+    try {
+      const res = await fetch('/api/hearings/addvenue', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hearingid, venue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update venue');
+      return data;
+    } catch (err) {
+      console.error('Error updating venue:', err);
+      alert('Failed to update venue: ' + err.message);
+      throw err;
     }
-    setShowModal(false);
-    setEditingHearing(null);
-    setHearingForm({
-      caseName: '',
-      date: '',
-      time: '',
-      venue: '',
-      judge: '',
-      status: 'Scheduled'
-    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (editingHearing) {
+      try {
+        await updateVenueApi(editingHearing.hearingid, hearingForm.venue);
+        setHearings(hearings.map(h =>
+          h.hearingid === editingHearing.hearingid ? { ...h, courtroomno: hearingForm.venue } : h
+        ));
+        setShowModal(false);
+        setEditingHearing(null);
+        setHearingForm({
+          caseName: '',
+          date: '',
+          time: '',
+          venue: '',
+          judge: '',
+          status: 'Scheduled'
+        });
+      } catch {
+        // error handled in updateVenueApi
+      }
+    } else {
+      // Add new hearing logic if you want, currently omitted
+    }
   };
 
   const handleEdit = (hearing) => {
     setEditingHearing(hearing);
-    setHearingForm(hearing);
+    setHearingForm({
+      caseName: hearing.casename || '',
+      date: hearing.hearingdate || '',
+      time: hearing.hearingtime || '',
+      venue: hearing.courtroomno || '',
+      judge: hearing.judgename || '',
+      status: hearing.status || 'Scheduled'
+    });
     setShowModal(true);
   };
 
   const handleDelete = (hearingId) => {
-    setHearings(hearings.filter(h => h.id !== hearingId));
+    setHearings(hearings.filter(h => h.hearingid !== hearingId));
   };
 
   return (
@@ -90,11 +121,11 @@ const RegistrarHearingSchedule = () => {
               <tbody>
                 {hearings.map((hearing) => (
                   <tr key={hearing.hearingid}>
-                    <td>{hearing.caseName || 'N/A'}</td>
+                    <td>{hearing.casename || 'N/A'}</td>
                     <td>{hearing.hearingdate || 'N/A'}</td>
                     <td>{hearing.hearingtime || 'N/A'}</td>
-                    <td>{hearing.courtroomid || 'N/A'}</td>
-                    <td>{hearing.judge || 'N/A'}</td>
+                    <td>{hearing.courtroomno || 'N/A'}</td>
+                    <td>{hearing.judgename || 'N/A'}</td>
                     <td>
                       <Badge bg={
                         hearing.status === 'Scheduled' ? 'success' :
@@ -110,7 +141,7 @@ const RegistrarHearingSchedule = () => {
                         size="sm"
                         onClick={() => handleEdit(hearing)}
                       >
-                        {hearing.courtroomid ? 'Edit Venue' : 'Add Venue'}
+                        {hearing.courtroomno ? 'Edit Venue' : 'Add Venue'}
                       </Button>
                     </td>
                   </tr>
@@ -124,7 +155,7 @@ const RegistrarHearingSchedule = () => {
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>
-            {editingHearing && editingHearing.courtroomid ? 'Edit Venue' : 'Add Venue'}
+            {editingHearing && editingHearing.courtroomno ? 'Edit Venue' : 'Add Venue'}
           </Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
@@ -194,7 +225,7 @@ const RegistrarHearingSchedule = () => {
               Cancel
             </Button>
             <Button variant="primary" type="submit">
-              {editingHearing && editingHearing.courtroomid ? 'Update Venue' : 'Add Venue'}
+              {editingHearing && editingHearing.courtroomno ? 'Update Venue' : 'Add Venue'}
             </Button>
           </Modal.Footer>
         </Form>

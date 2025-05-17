@@ -3,6 +3,8 @@ from decimal import Decimal
 import logging
 import os
 import traceback
+import psycopg2
+from psycopg.rows import dict_row
 from flask import Flask, g, request, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_cors import CORS
@@ -12,7 +14,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import aliased
-# from logdecorator import log_action
+from psycopg.rows import dict_row
 from config import Config
 from models import *
 app = Flask(__name__, static_folder="../frontend/dist", static_url_path="/")
@@ -23,6 +25,12 @@ logging.basicConfig(level=logging.DEBUG)
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def get_pg_connection():
+    import psycopg2
+    return psycopg2.connect(Config.SQLALCHEMY_DATABASE_URI)
+
+
+
 # Session and CORS
 Session(app)
 CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
@@ -32,7 +40,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 
 @login_manager.user_loader
-# @log_action(action_type="LOAD_USER", entity_type="User")
 def load_user(user_id):
     db = SessionLocal()
     user = db.query(Users).get(int(user_id))
@@ -78,7 +85,7 @@ def signup():
 
     db = SessionLocal()
     try:
-        # Check if a user with the same firstname and lastname already exists
+        # Check if a user with the same username already exists
         existing = db.query(Users).filter_by(firstname=firstname, lastname=lastname).first()
         if existing:
             logging.warning(f"User already exists with firstname: {firstname} and lastname: {lastname}")
@@ -267,7 +274,6 @@ def dashboard():
     })
 
 @app.route("/api/logout", methods=["POST"])
-# @log_action(action_type="Logout",entity_type="User")
 @login_required
 def logout():
     logout_user()
@@ -299,7 +305,6 @@ def get_lawyer_profile():
     })
 
 @app.route('/api/lawyerprofile', methods=['PUT'])
-# @log_action(action_type="Update",entity_type="Lawyer")
 def update_lawyer_profile():
     db = SessionLocal()
     user_id = current_user.userid
@@ -352,7 +357,6 @@ def update_registrar_profile():
         return jsonify(success=False, message=str(e)), 500
     
 @app.route('/api/clientprofile', methods=['PUT'])
-# @log_action(action_type="Update",entity_type="Client")
 def update_client_profile():
     db = SessionLocal()
     user_id = current_user.userid
@@ -378,46 +382,154 @@ def update_client_profile():
         return jsonify(success=False, message=str(e)), 500
     
     
-@app.route('/api/judgeprofile', methods=['PUT'])
-# @log_action(action_type="Update",entity_type="Judge")
-def update_judge_profile():
-    db = SessionLocal()
-    user_id = current_user.userid
+@app.route('/api/judges', methods=['GET'])
+@login_required
+def get_judges_for_court():
+    user_id = current_user.userid  # your user id attribute
 
-    if not user_id:
-        return jsonify(success=False, message="User ID is required."), 400
+    conn = get_pg_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # 1. Get court_id from courtregistrar using user_id
+            cur.execute("SELECT courtid FROM courtregistrar WHERE userid = %s", (user_id,))
+            court = cur.fetchone()
+            if not court:
+                return jsonify({"error": "Court Registrar not found"}), 404
+            court_id = court['courtid']
 
+            # 2. Get judges assigned to this court via judgeworksin
+            cur.execute("""
+                SELECT j.judgeid, u.firstname, u.lastname, j.position, j.expyears, j.appointmentdate, j.specialization
+                FROM judge j
+                JOIN users u ON u.userid = j.userid
+                JOIN judgeworksin jw ON jw.judgeid = j.judgeid
+                WHERE jw.courtid = %s
+            """, (court_id,))
+            judges = cur.fetchall()
+
+            response = []
+            for judge in judges:
+                # 3. Get assigned case titles from judgeaccess + cases
+                cur.execute("""
+                    SELECT c.title
+                    FROM judgeaccess ja
+                    JOIN cases c ON ja.caseid = c.caseid
+                    WHERE ja.judgeid = %s
+                """, (judge['judgeid'],))
+                cases = cur.fetchall()
+                assigned_titles = [c['title'] for c in cases]
+
+                full_name = f"{judge['firstname']} {judge['lastname']}"
+
+                response.append({
+                    "judgeid": judge['judgeid'],
+                    "name": full_name,
+                    "position": judge['position'],
+                    "expyears": judge['expyears'],
+                    "appointmentdate": judge['appointmentdate'].isoformat() if judge['appointmentdate'] else None,
+                    "specialization": judge['specialization'],
+                    "assigned_cases": assigned_titles
+                })
+
+        return jsonify({"judges": response})
+
+    finally:
+        conn.close()
+        
+@app.route('/api/judge', methods=['PUT'])
+@login_required
+def update_judge():
     data = request.get_json()
-    judge = db.query(Judge).filter_by(userid=user_id).first()
+    if not data:
+        return jsonify(success=False, message="No data provided"), 400
 
-    if not judge:
-        return jsonify(success=False, message="Profile not found"), 404
+    full_name = data.get('name', '').strip()
+    if not full_name:
+        return jsonify(success=False, message="Judge name is required"), 400
+
+    # Split name; if only one part given, last name = ''
+    name_parts = full_name.split()
+    firstname = name_parts[0]
+    lastname = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+
+    # Optional fields for further filtering
+    appointmentdate = data.get('appointmentDate')
+    position = data.get('position')
 
     try:
-        judge.specialization = data.get('specialization', judge.specialization)
-        judge.appointmentdate = data.get('appointmentdate', judge.appointmentdate)
-        judge.expyears = data.get('expyears', judge.expyears),
-        judge.position = data.get('position',judge.position)
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-        db.commit()
+        # Find userid in users table by firstname and lastname
+        cur.execute("""
+            SELECT userid FROM users
+            WHERE firstname = %s AND lastname = %s
+        """, (firstname, lastname))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify(success=False, message="Judge user not found"), 404
+        userid = user_row['userid']
+
+        # Build query to find judge record
+        query = "SELECT * FROM judge WHERE userid = %s"
+        params = [userid]
+
+        # Add optional filters if provided
+        if appointmentdate:
+            query += " AND appointmentdate = %s"
+            params.append(appointmentdate)
+        if position:
+            query += " AND position = %s"
+            params.append(position)
+
+        cur.execute(query, params)
+        judge = cur.fetchone()
+        if not judge:
+            cur.close()
+            conn.close()
+            return jsonify(success=False, message="Judge profile not found"), 404
+
+        # Use new values from frontend or fallback to existing values
+        specialization = data.get('specialization', judge['specialization'])
+        appointmentdate_new = data.get('appointmentDate', judge['appointmentdate'])
+        expyears = data.get('experience', judge['expyears'])
+        position_new = data.get('position', judge['position'])
+
+        # Update judge profile
+        cur.execute("""
+            UPDATE judge
+            SET specialization = %s,
+                appointmentdate = %s,
+                expyears = %s,
+                position = %s
+            WHERE userid = %s
+        """, (specialization, appointmentdate_new, expyears, position_new, userid))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
         return jsonify(success=True, message="Profile updated successfully")
 
     except Exception as e:
-        db.rollback()
+        if conn:
+            conn.rollback()
+            conn.close()
         return jsonify(success=False, message=str(e)), 500
-    
+
 
 @app.route('/api/court', methods=['POST'])
-# @log_action(action_type="Create",entity_type="Court")
 @login_required
 def add_court():
     db = SessionLocal()
     try:
         data = request.get_json()
 
-        courtname = data.get('courtname')
-        court_type = data.get('type')
-        location = data.get('location')
+        courtname = data.get('name')
+        court_type = data.get('courtType')
+        location = data.get('address')
 
         if not courtname or not court_type or not location:
             return jsonify({'status': 'error', 'message': 'All fields (courtname, type, location) are required'}), 400
@@ -444,36 +556,50 @@ def add_court():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         db.close()
-    
         
 @app.route('/api/registrarprofile', methods=['GET'])
 @login_required
 def get_registrar_profile():
-    db = SessionLocal()
     try:
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
         user_id = current_user.userid
 
-        registrar = db.query(Courtregistrar).filter_by(userid=user_id).first()
+        # Join courtregistrar with court to get court name
+        cur.execute("""
+            SELECT r.position, c.courtname AS courtname
+            FROM courtregistrar r
+            JOIN court c ON r.courtid = c.courtid
+            WHERE r.userid = %s
+        """, (user_id,))
+        registrar = cur.fetchone()
 
         if not registrar:
+            cur.close()
+            conn.close()
             return jsonify(success=False, message="Registrar profile not found"), 404
 
-        return jsonify(success=True, data={
+        data = {
             'firstName': current_user.firstname,
             'lastName': current_user.lastname,
             'email': current_user.email,
             'phone': current_user.phoneno,
             'cnic': current_user.cnic,
             'dob': current_user.dob.isoformat() if current_user.dob else '',
-            'position': registrar.position,
-            'courtid': registrar.courtid  
-        }), 200
+            'position': registrar['position'],
+            'court': registrar['courtname']
+        }
+
+        cur.close()
+        conn.close()
+
+        return jsonify(success=True, data=data), 200
 
     except Exception as e:
+        if conn:
+            conn.close()
         return jsonify(success=False, message=str(e)), 500
-
-    finally:
-        db.close()
 
 @app.route('/api/court', methods=['GET'])
 @login_required
@@ -508,7 +634,7 @@ def get_payments():
     db = SessionLocal()
     try:
         # Check if the user is a lawyer or a court registrar
-        if current_user.role == 'lawyer':
+        if current_user.role == 'Lawyer':
             # Fetch lawyer using userid
             lawyer = db.query(Lawyer).filter_by(userid=current_user.userid).first()
             if not lawyer:
@@ -519,13 +645,18 @@ def get_payments():
                 db.query(Payments)
                 .filter_by(lawyerid=lawyer.lawyerid)
                 .join(Cases, Payments.caseid == Cases.caseid)
+                .join(t_courtaccess, Payments.caseid ==t_courtaccess.c.caseid)
+                .join(Court, t_courtaccess.c.courtid == Court.courtid)
                 .with_entities(
                     Payments.paymentdate,
                     Cases.title.label("casename"),
                     Payments.purpose,
                     Payments.balance,
                     Payments.mode,
-                    Payments.paymenttype
+                    Payments.paymenttype,
+                    Payments.status,
+                    Court.courtname
+                    
                 )
                 .all()
             )
@@ -566,7 +697,9 @@ def get_payments():
                 "casename": p.casename,
                 "purpose": p.purpose,
                 "balance": float(p.balance),
-                "mode": p.mode
+                "mode": p.mode,
+                "status":p.status,
+                "courtname":p.courtname
             }
             for p in payments
         ]
@@ -578,56 +711,64 @@ def get_payments():
     finally:
         db.close()
 
-        
 @app.route('/api/payments', methods=['POST'])
-# @log_action(action_type="Create",entity_type="Paymnts")
 @login_required
 def create_payment():
-    db = SessionLocal()
+    data = request.get_json()
+
+    casename = data.get('casename')
+    purpose = data.get('purpose')
+    balance = data.get('balance')
+    mode = data.get('mode')
+    paymenttype = data.get('paymenttype')
+    paymentdate = data.get('paymentdate') or datetime.date.today()
+
+    if not all([casename, purpose, balance, mode, paymenttype]):
+        return jsonify({'message': 'Missing required fields'}), 400
+
     try:
-        data = request.get_json()
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        casename = data.get('casename')
-        purpose = data.get('purpose')
-        balance = data.get('balance')
-        mode = data.get('mode')
-        paymentdate = data.get('paymentdate') or datetime.date.today()
-        paymenttype = data.get('paymenttype')  
-
-        if not all([casename, purpose, balance, mode, paymenttype]):
-            return jsonify({'message': 'Missing required fields'}), 400  
-
-        # 1. Get lawyer
-        lawyer = db.query(Lawyer).filter_by(userid=current_user.userid).first()
-        if not lawyer:
+        # 1. Get lawyer ID for current user
+        cur.execute("SELECT lawyerid FROM lawyer WHERE userid = %s", (current_user.userid,))
+        lawyer_row = cur.fetchone()
+        if not lawyer_row:
             return jsonify({'message': 'Lawyer not found'}), 404
+        lawyerid = lawyer_row['lawyerid']
 
-        # 2. Get case by title
-        case = db.query(Cases).filter_by(title=casename).first()
-        if not case:
+        # 2. Get case ID by title
+        cur.execute("SELECT caseid FROM cases WHERE title = %s", (casename,))
+        case_row = cur.fetchone()
+        if not case_row:
             return jsonify({'message': 'Case not found'}), 404
+        caseid = case_row['caseid']
 
-        # 3. Get courtid via courtaccess
-        access_entry = db.query(t_courtaccess).filter(t_courtaccess.c.caseid == case.caseid).first()
-        if not access_entry:
+        # 3. Get court ID from courtaccess
+        cur.execute("SELECT courtid FROM courtaccess WHERE caseid = %s", (caseid,))
+        court_row = cur.fetchone()
+        if not court_row:
             return jsonify({'message': 'Court access entry not found'}), 404
+        courtid = court_row['courtid']
 
-        courtid = access_entry.courtid
+        # 4. Insert into payments
+        cur.execute("""
+            INSERT INTO payments (mode, purpose, balance, paymentdate, lawyerid, caseid, courtid, paymenttype)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            mode,
+            purpose,
+            Decimal(balance),
+            paymentdate,
+            lawyerid,
+            caseid,
+            courtid,
+            paymenttype
+        ))
 
-        # 4. Create and save payment
-        new_payment = Payments(
-            mode=mode,
-            purpose=purpose,
-            balance=Decimal(balance),
-            paymentdate=paymentdate,
-            lawyerid=lawyer.lawyerid,
-            caseid=case.caseid,
-            courtid=courtid,
-            paymenttype=paymenttype  
-        )
-
-        db.add(new_payment)
-        db.commit()
+        conn.commit()
+        cur.close()
+        conn.close()
 
         return jsonify({
             'message': 'Payment recorded successfully',
@@ -637,15 +778,15 @@ def create_payment():
                 'purpose': purpose,
                 'balance': float(balance),
                 'mode': mode,
-                'paymenttype': paymenttype  
+                'paymenttype': paymenttype
             }
         }), 201
 
     except Exception as e:
-        db.rollback()
+        if conn:
+            conn.rollback()
+            conn.close()
         return jsonify({'message': str(e)}), 500
-    finally:
-        db.close()
         
 @app.route('/api/clientprofile', methods=['GET'])
 @login_required
@@ -705,98 +846,379 @@ def get_judge_profile():
 
     finally:
         db.close()
+@app.route("/api/prosecutors", methods=["GET"])
+@login_required
+def get_prosecutors():
+    print("Endpoint /api/prosecutors called")
+    conn = None
+    try:
+        conn = get_pg_connection()
+        print("Database connection established")
 
+        user_id = current_user.userid
+        print(f"Current user ID: {user_id}")
+
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Step 1: Get court ID of the logged-in registrar
+            print("Fetching registrar's court ID...")
+            cur.execute("""
+                SELECT courtid 
+                FROM courtregistrar 
+                WHERE userid = %s
+            """, (user_id,))
+            row = cur.fetchone()
+
+            if not row:
+                print("Registrar not found for user")
+                return jsonify({"error": "Registrar not found"}), 404
+
+            court_id = row["courtid"]
+            print(f"Registrar's court ID: {court_id}")
+
+            # Step 2: Fetch all prosecutors
+            print("Fetching all prosecutors...")
+            cur.execute("SELECT * FROM prosecutor")
+            prosecutors = cur.fetchall()
+            print(f"Total prosecutors fetched: {len(prosecutors)}")
+
+            # Step 3: Fetch case assignments only where courtaccess.courtid = registrar's court_id
+            print("Fetching case assignments for registrar's court...")
+            cur.execute("""
+                SELECT 
+                    p.prosecutorid, 
+                    c.title
+                FROM 
+                    prosecutorassign pa
+                JOIN 
+                    prosecutor p ON pa.prosecutorid = p.prosecutorid
+                JOIN 
+                    cases c ON pa.caseid = c.caseid
+                JOIN 
+                    courtaccess ca ON ca.caseid = c.caseid
+                WHERE 
+                    ca.courtid = %s
+            """, (court_id,))
+            assignments = cur.fetchall()
+            print(f"Filtered assignments fetched: {len(assignments)}")
+
+        # Step 4: Build map from prosecutor to assigned case titles
+        prosecutor_case_map = {}
+        for row in assignments:
+            pid = row["prosecutorid"]
+            prosecutor_case_map.setdefault(pid, []).append(row["title"])
+
+        # Step 5: Format response
+        result = []
+        for p in prosecutors:
+            assigned = prosecutor_case_map.get(p["prosecutorid"], [])
+            result.append({
+                "id": p["prosecutorid"],
+                "name": p["name"],
+                "experience": p["experience"],
+                "status": p["status"],
+                "assignedCases": assigned
+            })
+
+        print("Returning prosecutors with court-specific assignments")
+        return jsonify({"prosecutors": result}), 200
+
+    except Exception as e:
+        print("Error fetching prosecutors:", str(e))
+        return jsonify({"error": "Internal server error"}), 500
+
+    finally:
+        if conn:
+            conn.close()
+            print("Database connection closed")
 
 @app.route("/api/prosecutor", methods=['POST'])
-# @log_action(action_type="Create",entity_type="Prosecutor")
 @login_required
 def create_prosecutor():
-    db = SessionLocal()
+    data = request.get_json()
+    name = data.get('name')
+    experience = data.get('experience')
+    status = data.get('status')
+    case_names = data.get('case_names', [])
+
+    if not name or experience is None or status is None:
+        return jsonify({"error": "Missing required fields"}), 400
+
     try:
-        data = request.get_json()
-        name = data.get('name')
-        experience = data.get('experience')
-        status = data.get('status')
-        case_names = data.get('case_names', [])  
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        if not name or experience is None or status is None:
-            return jsonify({"error": "Missing required fields"}), 400
+        # 1. Insert into prosecutor table
+        cur.execute("""
+            INSERT INTO prosecutor (name, experience, status)
+            VALUES (%s, %s, %s)
+            RETURNING prosecutorid
+        """, (name, experience, status))
+        prosecutor_row = cur.fetchone()
+        prosecutor_id = prosecutor_row['prosecutorid']
 
-        
-        new_prosecutor = Prosecutor(name=name, experience=experience, status=status)
-        db.add(new_prosecutor)
-        db.commit()
-        db.refresh(new_prosecutor)
-
-        
+        # 2. If case names provided, link to cases
         if case_names:
-            case_ids = db.query(Cases.caseid).filter(Cases.name.in_(case_names)).all()
-            case_ids = [c[0] for c in case_ids]  
+            # Fetch case IDs from cases table
+            cur.execute("""
+                SELECT caseid FROM cases
+                WHERE title = ANY(%s)
+            """, (case_names,))
+            case_rows = cur.fetchall()
+            case_ids = [row['caseid'] for row in case_rows]
 
-            assignments = [
-                t_prosecutorassign(prosecutor_id=new_prosecutor.prosecutorid, case_id=cid)
-                for cid in case_ids
-            ]
-            db.add_all(assignments)
-            db.commit()
+            # Insert into t_prosecutorassign
+            for cid in case_ids:
+                cur.execute("""
+                    INSERT INTO prosecutorassign (prosecutor_id, case_id)
+                    VALUES (%s, %s)
+                """, (prosecutor_id, cid))
+
+        conn.commit()
+        cur.close()
+        conn.close()
 
         return jsonify({
-            "id": new_prosecutor.id,
-            "name": new_prosecutor.name,
-            "experience": new_prosecutor.experience,
-            "status": new_prosecutor.status,
+            "id": prosecutor_id,
+            "name": name,
+            "experience": experience,
+            "status": status,
             "assigned_cases": case_names
         }), 201
-    except Exception as e:
-        db.rollback()
-        return jsonify({"error": str(e)}), 500
-    finally:
-        db.close()
 
-        
-# api made by kaif
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/prosecutor", methods=['PUT'])
+@login_required
+def update_prosecutor():
+    data = request.get_json()
+    prosecutor_id = data.get('id')
+    name = data.get('name')
+    experience = data.get('experience')
+    status = data.get('status')
+    case_names = data.get('case_names', [])
+
+    if not prosecutor_id or not name:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Update prosecutor record
+        cur.execute("""
+            UPDATE prosecutor
+            SET name = %s, experience = %s, status = %s
+            WHERE prosecutorid = %s
+        """, (name, experience, status, prosecutor_id))
+
+        # Delete existing case assignments
+        cur.execute("DELETE FROM prosecutorassign WHERE prosecutor_id = %s", (prosecutor_id,))
+
+        # Insert updated case assignments
+        if case_names:
+            cur.execute("""
+                SELECT caseid FROM cases
+                WHERE title = ANY(%s)
+            """, (case_names,))
+            case_rows = cur.fetchall()
+            case_ids = [row['caseid'] for row in case_rows]
+
+            for cid in case_ids:
+                cur.execute("""
+                    INSERT INTO prosecutorassign (prosecutor_id, case_id)
+                    VALUES (%s, %s)
+                """, (prosecutor_id, cid))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "message": "Prosecutor updated successfully"})
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/prosecutor/<int:prosecutor_id>", methods=['DELETE'])
+@login_required
+def delete_prosecutor(prosecutor_id):
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # Delete assignments
+        cur.execute("DELETE FROM prosecutorassign WHERE prosecutorid = %s", (prosecutor_id,))
+        # Delete prosecutor
+        cur.execute("DELETE FROM prosecutor WHERE prosecutorid = %s", (prosecutor_id,))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "message": "Prosecutor deleted successfully"})
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/courtrooms', methods=['POST'])
 @login_required
 def create_courtroom():
-    db = SessionLocal()
+    data = request.get_json()
+
+    number = data.get('number')
+    capacity = data.get('capacity')
+    availability = data.get('availability')
+
+    if not all([number, capacity]):
+        return jsonify({'message': 'Missing required fields'}), 400
+
     try:
-        data = request.get_json()
-        courtroom = Courtroom(
-            number=data.get('number'),
-            name=data.get('name'),
-            capacity=data.get('capacity'),
-            type=data.get('type'),
-            status=data.get('status', 'Available')
-        )
-        db.add(courtroom)
-        db.commit()
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # Get courtid for current registrar user
+        cur.execute("""
+            SELECT courtid FROM courtregistrar WHERE userid = %s
+        """, (current_user.userid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({'message': 'Court registrar or court not found'}), 404
+        courtid = row[0]
+
+        # Insert into courtroom table
+        cur.execute("""
+            INSERT INTO courtroom (courtroomno, capacity, availability, courtid)
+            VALUES (%s, %s, %s, %s)
+        """, (number, capacity, availability, courtid))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
         return jsonify({'message': 'Courtroom created successfully'}), 201
+
     except Exception as e:
-        db.rollback()
+        if conn:
+            conn.rollback()
+            conn.close()
         return jsonify({'message': str(e)}), 500
-    finally:
-        db.close()
+    
+
+@app.route('/api/courtrooms/<int:courtroom_id>', methods=['PUT'])
+@login_required
+def update_courtroom(courtroom_id):
+    data = request.get_json()
+
+    number = data.get('number')
+    capacity = data.get('capacity')
+    availability = data.get('status')
+
+    if not all([number, capacity, availability]):
+        return jsonify({'message': 'Missing required fields'}), 400
+
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        #verify courtroom exists 
+        cur.execute("SELECT 1 FROM courtroom WHERE courtroomid = %s", (courtroom_id,))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({'message': 'Courtroom not found'}), 404
+
+        # Update courtroom record
+        cur.execute("""
+            UPDATE courtroom
+            SET courtroomno = %s,
+                capacity = %s,
+                availability = %s
+            WHERE courtroomid = %s
+        """, (number, capacity, availability, courtroom_id))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({'message': 'Courtroom updated successfully'})
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({'message': str(e)}), 500
+    
+@app.route('/api/courtrooms/<int:courtroom_id>', methods=['DELETE'])
+@login_required
+def delete_courtroom(courtroom_id):
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        #   verify courtroom exists
+        cur.execute("SELECT 1 FROM courtroom WHERE courtroomid = %s", (courtroom_id,))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({'message': 'Courtroom not found'}), 404
+
+        # Delete courtroom
+        cur.execute("DELETE FROM courtroom WHERE courtroomid = %s", (courtroom_id,))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({'message': 'Courtroom deleted successfully'})
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({'message': str(e)}), 500
+
 
 @app.route('/api/courtrooms', methods=['GET'])
 @login_required
 def get_courtrooms():
-    db = SessionLocal()
     try:
-        courtrooms = db.query(Courtroom).all()
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute("""
+            SELECT number AS courtroomno, capacity, status
+            FROM courtroom
+        """)
+        rows = cur.fetchall()
+
         result = [
             {
-                'number': r.courtroomno,
-                'capacity': r.capacity,
-                'status': r.status
+                'number': row['courtroomno'],
+                'capacity': row['capacity'],
+                'status': row['status']
             }
-            for r in courtrooms
+            for row in rows
         ]
+
+        cur.close()
+        conn.close()
         return jsonify({'courtrooms': result}), 200
+
     except Exception as e:
+        if conn:
+            conn.close()
         return jsonify({'message': str(e)}), 500
-    finally:
-        db.close()
 
 # cases api
 @app.route('/api/cases', methods=['POST'])
@@ -835,25 +1257,41 @@ def create_case():
 @app.route('/api/courtrooms/<int:courtid>', methods=['GET'])
 @login_required
 def get_courtrooms_by_court(courtid):
-    db = SessionLocal()
+    conn = None
     try:
-        courtrooms = db.query(Courtroom).filter(Courtroom.courtid == courtid).all()
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        query = """
+            SELECT courtroomid, courtroomno, capacity, availability
+            FROM courtroom
+            WHERE courtid = %s
+        """
+        cur.execute(query, (courtid,))
+        rows = cur.fetchall()
+
         result = [
             {
-                'id': r.courtroomid,
-                'name': "CourtRoom " + str(r.courtroomid),
-                'number': r.courtroomno,
-                'capacity': r.capacity,
-                'status': 'Available' if r.availability else 'Occupied'
+                'id': row[0],
+                'name': "CourtRoom " + str(row[0]),
+                'number': row[1],
+                'capacity': row[2],
+                'status': 'Available' if row[3] else 'Occupied'
             }
-            for r in courtrooms
+            for row in rows
         ]
+
+        cur.close()
         return jsonify({'success': True, 'data': result}), 200
+
     except Exception as e:
+        if conn:
+            conn.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
     finally:
-        db.close()
-        
+        if conn:
+            conn.close()
 @app.route('/api/cases', methods=['GET'])
 @login_required
 def get_cases():
@@ -875,7 +1313,94 @@ def get_cases():
             lawyer = db.query(Lawyer).filter_by(userid=userid).first()
             if not lawyer:
                 return jsonify({'message': 'Lawyer profile not found'}), 404
+
             query = query.join(Cases.lawyer).filter(Lawyer.lawyerid == lawyer.lawyerid)
+            cases = query.distinct().all()
+
+            result = []
+            for c in cases:
+                # Court name(s)
+                court_names = [court.courtname for court in c.court if court.courtname]
+                court_name_str = ', '.join(court_names) if court_names else 'N/A'
+
+                # Get prosecutor name by joining prosecutorassign and prosecutor tables using caseid
+                prosecutor_name = 'N/A'
+                prosecutor_assign_rows = db.execute(
+                t_prosecutorassign.select().where(t_prosecutorassign.c.caseid == c.caseid)
+                ).fetchall()
+
+                if prosecutor_assign_rows:
+        # Assuming one prosecutor per case, or take the first
+                    prosecutorid = prosecutor_assign_rows[0].prosecutorid
+                    prosecutor = db.query(Prosecutor).filter_by(prosecutorid=prosecutorid).first()
+                    if prosecutor:
+                        prosecutor_name = prosecutor.name
+                    
+                
+                # Judge name
+                judge_name = ''
+                if c.judge:
+                    judge = c.judge[0]
+                    if judge.users:
+                        judge_name = f"{judge.users.firstname or ''} {judge.users.lastname or ''}".strip()
+
+                # Case history
+                history = [
+                    {
+                        'date': h.actiondate.isoformat() if h.actiondate else None,
+                        'event': h.actiontaken
+                    }
+                    for h in c.casehistory
+                ]
+
+                # Final decision
+                decision_data = {}
+                if c.finaldecision:
+                    fd = c.finaldecision[0]
+                    decision_data = {
+                        'decisionId': fd.decisionid,
+                        'verdict': fd.verdict or '',
+                        'decisionSummary': fd.decisionsummary or '',
+                        'decisionDate': fd.decisiondate.isoformat() if fd.decisiondate else ''
+                    }
+
+                # Remand status
+                remand = db.query(Remands).filter_by(caseid=c.caseid).first()
+                remand_status = remand.status if remand else 'N/A'
+
+                # Client name
+                client_name = 'N/A'
+                access_row = db.execute(
+                    t_caseparticipantaccess.select().where(t_caseparticipantaccess.c.caseid == c.caseid)
+                ).first()
+
+                if access_row:
+                    participant = db.query(Caseparticipant).filter_by(participantid=access_row.participantid).first()
+                    if participant:
+                        client_user = db.query(Users).filter_by(userid=participant.userid).first()
+                        if client_user:
+                            client_name = f"{client_user.firstname or ''} {client_user.lastname or ''}".strip()
+
+                result.append({
+                    'id': c.caseid,
+                    'title': c.title,
+                    'description': c.description,
+                    'casetype': c.casetype,
+                    'filingdate': c.filingdate.isoformat() if c.filingdate else None,
+                    'status': c.status,
+                    'clientname': client_name,
+                    'courtname': court_name_str,
+                    'judgeName': judge_name or 'N/A',
+                    'prosecutorName': prosecutor_name,
+                    'remandstatus': remand_status,
+                    'decisionId': decision_data.get('decisionId', ''),
+                    'decisiondate': decision_data.get('decisionDate', ''),
+                    'decisionsummary': decision_data.get('decisionSummary', ''),
+                    'verdict': decision_data.get('verdict', ''),
+                    'history': history
+                })
+
+            return jsonify({'cases': result}), 200
 
         elif role == 'Judge':
             judge = db.query(Judge).filter_by(userid=userid).first()
@@ -949,9 +1474,9 @@ def get_cases():
                     'filingDate': c.filingdate.isoformat() if c.filingdate else None,
                     'status': c.status,
                     'lawyers': lawyers_str,
-                    'clientName': "",  # Optional to populate from Caseparticipant
+                    'clientName': "",
                     'courtName': court_name_str,
-                    'nextHearing': "N/A",  # Can be extended using c.hearings
+                    'nextHearing': "N/A",
                     'remarks': "",
                     'finalDecision': final_decision,
                     'history': history,
@@ -966,17 +1491,14 @@ def get_cases():
             if not participant:
                 return jsonify({'message': 'CaseParticipant profile not found'}), 404
 
-            # Step 1: Get accessible case IDs from t_caseparticipantaccess
             access_rows = db.execute(
                 t_caseparticipantaccess.select().filter_by(participantid=participant.participantid)
             ).fetchall()
             case_ids = [row[0] for row in access_rows]
 
-
             if not case_ids:
                 return jsonify({'cases': []}), 200
 
-            # Step 2: Query cases and build full detail
             cases = db.query(Cases).filter(Cases.caseid.in_(case_ids)).distinct().all()
             result = []
 
@@ -1043,7 +1565,7 @@ def get_cases():
                     'filingDate': c.filingdate.isoformat() if c.filingdate else None,
                     'status': c.status,
                     'lawyers': lawyers_str,
-                    'clientName': "",  # Optional to populate
+                    'clientName': "",
                     'courtName': court_name_str,
                     'nextHearing': "N/A",
                     'remarks': "",
@@ -1061,18 +1583,40 @@ def get_cases():
                 return jsonify({'message': 'CourtRegistrar not found'}), 404
 
             court_id = court_registrar.courtid
-            court_access_cases = db.execute(
-                t_courtaccess.select().filter_by(courtid=court_id)
-            ).fetchall()
 
-            if not court_access_cases:
-                return jsonify({'message': 'No cases found for this court.'}), 404
+            client_user = aliased(Users)
+            lawyer_user = aliased(Users)
+            judge_user = aliased(Users)
 
-            case_ids = [row[0] for row in court_access_cases]
-            cases = db.query(Cases).filter(Cases.caseid.in_(case_ids)).all()
-
-            if not cases:
-                return jsonify({'message': 'No cases found.'}), 404
+            cases = (
+                db.query(
+                    Cases.caseid,
+                    Cases.title,
+                    Cases.description,
+                    Cases.casetype,
+                    Cases.filingdate,
+                    Cases.status,
+                    (client_user.firstname + ' ' + client_user.lastname).label('clientname'),
+                    (lawyer_user.firstname + ' ' + lawyer_user.lastname).label('lawyername'),
+                    Prosecutor.name.label('prosecutor'),
+                    (judge_user.firstname + ' ' + judge_user.lastname).label('judgename'),
+                )
+                .join(t_courtaccess, t_courtaccess.c.caseid == Cases.caseid)
+                .filter(t_courtaccess.c.courtid == court_id)
+                .outerjoin(t_caseparticipantaccess, t_caseparticipantaccess.c.caseid == Cases.caseid)
+                .outerjoin(Caseparticipant, Caseparticipant.participantid == t_caseparticipantaccess.c.participantid)
+                .outerjoin(client_user, client_user.userid == Caseparticipant.userid)
+                .outerjoin(t_caselawyeraccess, t_caselawyeraccess.c.caseid == Cases.caseid)
+                .outerjoin(Lawyer, Lawyer.lawyerid == t_caselawyeraccess.c.lawyerid)
+                .outerjoin(lawyer_user, lawyer_user.userid == Lawyer.userid)
+                .outerjoin(t_judgeaccess, t_judgeaccess.c.caseid == Cases.caseid)
+                .outerjoin(Judge, Judge.judgeid == t_judgeaccess.c.judgeid)
+                .outerjoin(judge_user, judge_user.userid == Judge.userid)
+                .outerjoin(t_prosecutorassign, t_prosecutorassign.c.caseid == Cases.caseid)
+                .outerjoin(Prosecutor, Prosecutor.prosecutorid == t_prosecutorassign.c.prosecutorid)
+                .distinct()
+                .all()
+            )
 
             result = [
                 {
@@ -1082,6 +1626,10 @@ def get_cases():
                     'casetype': c.casetype,
                     'filingdate': c.filingdate.isoformat() if c.filingdate else None,
                     'status': c.status,
+                    'clientName': c.clientname,
+                    'lawyername': c.lawyername,
+                    'prosecutor': c.prosecutor,
+                    'judgeName': c.judgename,
                 }
                 for c in cases
             ]
@@ -1097,7 +1645,6 @@ def get_cases():
             query = query.filter(Cases.title.ilike(f"%{title}%"))
 
         cases = query.distinct().all()
-
         result = [
             {
                 'caseid': c.caseid,
@@ -1113,13 +1660,14 @@ def get_cases():
         return jsonify({'cases': result}), 200
 
     except Exception as e:
+        logging.error("Error in get_cases:", exc_info=True)
         return jsonify({'message': str(e)}), 500
 
     finally:
         db.close()
 
 
-
+from sqlalchemy import func
 
 @app.route('/api/hearings', methods=['GET'])
 @login_required
@@ -1129,38 +1677,14 @@ def get_hearings_role():
         userid = current_user.userid
         role = current_user.role
 
-        query = db.query(Hearings)
-
-        # Fetch hearings based on the role
-        if role == 'Lawyer':
-            lawyer = db.query(Lawyer).filter_by(userid=userid).first()
-            if not lawyer:
-                return jsonify({'message': 'Lawyer profile not found'}), 404
-            query = query.join(Cases).join(Cases.lawyer).filter(Lawyer.lawyerid == lawyer.lawyerid)
-
-        elif role == 'Judge':
-            judge = db.query(Judge).filter_by(userid=userid).first()
-            if not judge:
-                return jsonify({'message': 'Judge profile not found'}), 404
-            query = query.join(Cases).join(Cases.judge).filter(Judge.judgeid == judge.judgeid)
-
-        elif role == 'CaseParticipant':
-            participant = db.query(Caseparticipant).filter_by(userid=userid).first()
-            if not participant:
-                return jsonify({'message': 'CaseParticipant profile not found'}), 404
-            query = query.join(Cases).join(Cases.caseparticipant).filter(Caseparticipant.participantid == participant.participantid)
-
-        elif role == 'CourtRegistrar':
-            # Get the CourtRegistrar associated with the current user
+        if role == 'CourtRegistrar':
+            # Your existing CourtRegistrar logic (unchanged)
             court_registrar = db.query(Courtregistrar).filter_by(userid=userid).first()
-
             if not court_registrar:
                 return jsonify({'message': 'CourtRegistrar not found'}), 404
 
-            # Get the courtId associated with the CourtRegistrar
             court_id = court_registrar.courtid
 
-            # Fetch court access cases related to the courtId using the manually defined table
             court_access_cases = db.execute(
                 t_courtaccess.select().filter_by(courtid=court_id)
             ).fetchall()
@@ -1168,30 +1692,112 @@ def get_hearings_role():
             if not court_access_cases:
                 return jsonify({'message': 'No cases found for this court.'}), 404
 
-            # Extract the caseIds from t_courtaccess
             case_ids = [row[0] for row in court_access_cases]
 
-            # Query the Hearings table to fetch hearings associated with these caseIds
-            query = query.filter(Hearings.caseid.in_(case_ids))
+            query = (
+                db.query(
+                    Hearings.hearingid,
+                    Hearings.hearingdate,
+                    Hearings.hearingtime,
+                    Cases.title.label('casename'),
+                    Users.firstname,
+                    Users.lastname,
+                    Hearings.venue.label('courtroomno')
+                )
+                .join(Cases, Hearings.caseid == Cases.caseid)
+                .outerjoin(Judge, Hearings.judgeid == Judge.judgeid)
+                .outerjoin(Users, Judge.userid == Users.userid)
+                .filter(Hearings.caseid.in_(case_ids))
+                .order_by(Hearings.hearingdate.desc(), Hearings.hearingtime.asc())
+            )
 
-        elif role == 'Admin':
-            pass  # Admin can see all hearings
+            results = query.all()
 
-        # Fetch hearings
-        hearings = query.distinct().all()
+            output = []
+            for hearingid, hearingdate, hearingtime, casename, firstname, lastname, courtroomno in results:
+                output.append({
+                    'hearingid': hearingid,
+                    'hearingdate': hearingdate.isoformat(),
+                    'hearingtime': hearingtime.strftime("%H:%M") if hearingtime else None,
+                    'casename': casename,
+                    'courtroomno': courtroomno if courtroomno else "N/A",
+                    'judgename': f"{firstname} {lastname}" if firstname and lastname else "Unassigned"
+                })
 
-        result = [
-            {
-                # 'casename'
-                'hearingid': h.hearingid,
-                'hearingdate': h.hearingdate.isoformat(),
-                'hearingtime': h.hearingtime.strftime("%H:%M") if h.hearingtime else None,
-                'courtroomid': getattr(h, 'courtroomid', 'N/A')  # Optional
-            }
-            for h in hearings
-        ]
+            return jsonify({'hearings': output}), 200
 
-        return jsonify({'hearings': result}), 200
+        elif role == 'Judge':
+            # New logic for Judge: join hearings -> cases -> courtaccess -> court to get courtname
+            judge = db.query(Judge).filter_by(userid=userid).first()
+            if not judge:
+                return jsonify({'message': 'Judge profile not found'}), 404
+
+            query = (
+                db.query(
+                    Hearings.hearingid,
+                    Cases.title.label('casetitle'),
+                    Court.courtname,
+                    Hearings.hearingdate,
+                    Hearings.hearingtime,
+                    Hearings.remarks,
+                )
+                .join(Hearings, Hearings.caseid == Cases.caseid)
+                .join(t_courtaccess, t_courtaccess.c.caseid == Cases.caseid)
+                .join(Court, Court.courtid == t_courtaccess.c.courtid)
+                .filter(Hearings.judgeid == judge.judgeid)
+                .order_by(Hearings.hearingdate.desc(), Hearings.hearingtime.asc())
+            )
+
+            results = query.all()
+
+            output = []
+            for hearingid,casetitle, courtname, hearingdate, hearingtime, remarks in results:
+                output.append({
+                    'id':hearingid,
+                    'casetitle': casetitle,
+                    'courtname': courtname,
+                    'hearingdate': hearingdate.isoformat(),
+                    'hearingtime': hearingtime.strftime("%H:%M") if hearingtime else None,
+                    'remarks': remarks or ''
+                })
+
+            return jsonify({'hearings': output}), 200
+
+        else:
+            # Your existing logic for other roles (Lawyer, CaseParticipant, etc.)
+            query = db.query(Hearings)
+
+            if role == 'Lawyer':
+                lawyer = db.query(Lawyer).filter_by(userid=userid).first()
+                if not lawyer:
+                    return jsonify({'message': 'Lawyer profile not found'}), 404
+                query = query.join(Cases).join(Cases.lawyer).filter(Lawyer.lawyerid == lawyer.lawyerid)
+
+            elif role == 'CaseParticipant':
+                participant = db.query(Caseparticipant).filter_by(userid=userid).first()
+                if not participant:
+                    return jsonify({'message': 'CaseParticipant profile not found'}), 404
+                query = query.join(Cases).join(Cases.caseparticipant).filter(Caseparticipant.participantid == participant.participantid)
+
+            else:
+                return jsonify({'message': f'Role {role} not supported'}), 403
+
+            hearings = query.distinct().all()
+
+            result = [
+                {
+                    'hearingid': h.hearingid,
+                    'hearingdate': h.hearingdate.isoformat(),
+                    'hearingtime': h.hearingtime.strftime("%H:%M") if h.hearingtime else None,
+                    'courtroomid': (
+                        h.venue.split('#')[-1].strip()
+                        if h.venue and '#' in h.venue else 'N/A'
+                    )
+                }
+                for h in hearings
+            ]
+
+            return jsonify({'hearings': result}), 200
 
     except Exception as e:
         return jsonify({'message': str(e)}), 500
@@ -1199,6 +1805,39 @@ def get_hearings_role():
     finally:
         db.close()
 
+
+@app.route('/api/hearings/addvenue', methods=['PUT'])
+@login_required
+def add_venue_to_hearing():
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+    try:
+        data = request.get_json()
+        hearing_id = data.get('hearingid')
+        venue = data.get('venue')
+
+        if not hearing_id or not venue:
+            return jsonify({'message': 'Missing hearingid or venue'}), 400
+
+        # Check if hearing exists
+        cursor.execute("SELECT hearingid FROM hearings WHERE hearingid = %s", (hearing_id,))
+        hearing = cursor.fetchone()
+        if not hearing:
+            return jsonify({'message': 'Hearing not found'}), 404
+
+        # Update venue
+        cursor.execute("UPDATE hearings SET venue = %s WHERE hearingid = %s", (venue, hearing_id))
+        conn.commit()
+
+        return jsonify({'message': 'Venue updated successfully', 'hearingid': hearing_id, 'venue': venue}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'message': str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/api/casebyid', methods=['GET'])
 @login_required
@@ -1343,8 +1982,8 @@ def get_case_history(case_id):
                 'lawyerName': f"{lawyer.firstname} {lawyer.lastname}" if lawyer else "N/A",
                 'clientName': f"{client.firstname} {client.lastname}" if client else "N/A",
                 'remarks': h.remarks,
-                'actionDate': h.actiondate.isoformat() if h.actiondate else None,
-                'actionTaken': h.actiontaken,
+                'date': h.actiondate.isoformat() if h.actiondate else None,
+                'event': h.actiontaken,
                 'status': case.status  # or h.status if it exists per entry
             })
 
@@ -1376,129 +2015,322 @@ def get_case_history(case_id):
 #         db.close()
  
         
-@app.route('/api/cases/analytics', methods=['GET'])
-@login_required
-def get_case_analytics():
-    db = SessionLocal()
-    try:
-        total_cases = db.query(Cases).count()
-        open_cases = db.query(Cases).filter_by(status='Open').count()
-        closed_cases = db.query(Cases).filter_by(status='Closed').count()
-
-        return jsonify({
-            'total_cases': total_cases,
-            'open_cases': open_cases,
-            'closed_cases': closed_cases
-        }), 200
-    except Exception as e:
-        return jsonify({'message': str(e)}), 500
-    finally:
-        db.close()
-        
-
 
 @app.route('/api/appeals', methods=['POST'])
 @login_required
 def create_appeal():
-    db = SessionLocal()
+    conn = None
     try:
         data = request.get_json()
 
-        # Look up the caseid using casename, court, and casetype
-        case = db.query(Cases).filter(
-            Cases.title == data.get('casename'),
-            Cases.casetype == data.get('casetype'),
-            Cases.description == data.get('description')
-        ).first()
+        casename = data.get('casename')
+        casetype = data.get('casetype')
+        courtname = data.get('court')
+
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Look up the caseid
+        cur.execute("""
+            SELECT caseid FROM cases
+            WHERE title = %s AND casetype = %s
+            LIMIT 1
+        """, (casename, casetype))
+        case = cur.fetchone()
 
         if not case:
             return jsonify({'message': 'Case not found with the given details'}), 404
 
-        # Look up the court id (assuming we need it)
-        court = db.query(Court).filter(Court.courtname == data.get('court')).first()
+        # Check if court exists
+        cur.execute("""
+            SELECT courtid FROM court WHERE courtname = %s LIMIT 1
+        """, (courtname,))
+        court = cur.fetchone()
+
         if not court:
             return jsonify({'message': 'Court not found'}), 404
 
-        # Create the appeal object using the found caseid and default appealdate
-        appeal = Appeals(
-            appealdate=datetime.now(),  # Set current date as appeal date
-            appealstatus=data.get('appealStatus', 'Under Review'),  # Default status is 'Under Review'
-            caseid=case.caseid  # Use the caseid from the looked-up case
-        )
+        # Insert the appeal with current date and appealstatus
+        cur.execute("""
+            INSERT INTO appeals (appealdate, caseid)
+            VALUES (%s, %s)
+            RETURNING appealid
+        """, (datetime.datetime.now(), case['caseid']))
 
-        db.add(appeal)
-        db.commit()
-        return jsonify({'message': 'Appeal created successfully'}), 201
+        appeal_id = cur.fetchone()['appealid']
+        conn.commit()
+        cur.close()
+
+        return jsonify({'message': 'Appeal created successfully', 'appealid': appeal_id}), 201
 
     except Exception as e:
-        db.rollback()
+        if conn:
+            conn.rollback()
         return jsonify({'message': str(e)}), 500
     finally:
-        db.close()
-        
+        if conn:
+            conn.close()
+            
 @app.route('/api/appeals', methods=['GET'])
 @login_required
 def get_appeals():
-    db = SessionLocal()
     try:
-        # Perform the join with the relevant tables
-        appeals = db.query(
-            Appeals.appealdate,
-            Appeals.appealstatus,
-            Appeals.decisiondate,
-            Appeals.decision,
-            Cases.title.label('casename'),
-            Court.courtname
-        ).join(
-            Cases, Cases.caseid == Appeals.caseid
-        ).join(
-            t_courtaccess, t_courtaccess.c.caseid == Cases.caseid
-        ).join(
-            Court, Court.courtid == t_courtaccess.c.courtid
-        ).all()
-        
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        query = """
+        SELECT 
+            a.appealid,
+            a.appealdate,
+            a.appealstatus,
+            a.decisiondate,
+            a.decision,
+            c.title AS casename,
+            ct.courtname,
+
+            -- Lawyer name
+            u1.firstname || ' ' || u1.lastname AS lawyername,
+
+            -- Case participant name
+            u2.firstname || ' ' || u2.lastname AS caseparticipantname
+
+        FROM appeals a
+        JOIN cases c ON c.caseid = a.caseid
+        JOIN courtaccess ca ON ca.caseid = c.caseid
+        JOIN court ct ON ct.courtid = ca.courtid
+
+        LEFT JOIN caselawyeraccess cla ON cla.caseid = c.caseid
+        LEFT JOIN lawyer l ON l.lawyerid = cla.lawyerid
+        LEFT JOIN users u1 ON u1.userid = l.userid
+
+        LEFT JOIN caseparticipantaccess cpa ON cpa.caseid = c.caseid
+        LEFT JOIN caseparticipant cp ON cp.participantid = cpa.participantid
+        LEFT JOIN users u2 ON u2.userid = cp.userid;
+        """
+
+        cur.execute(query)
+        rows = cur.fetchall()
+
         result = [
             {
-                'appealdate': appeal.appealdate,
-                'appealstatus': appeal.appealstatus,
-                'decisiondate': appeal.decisiondate,
-                'decision': appeal.decision,
-                'casename': appeal.casename,
-                'courtname': appeal.courtname
+                'appealid' : row[0],
+                'appealdate': row[1],
+                'status': row[2],
+                'decisiondate': row[3],
+                'decision': row[4],
+                'casename': row[5],
+                'courtname': row[6],
+                'lawyername': row[7],
+                'clientname': row[8]
             }
-            for appeal in appeals
+            for row in rows
         ]
 
+        cur.close()
+        conn.close()
         return jsonify({'appeals': result}), 200
+
     except Exception as e:
-        logging.error(f"Error: {str(e)}", exc_info=True)  # Logs the error with the traceback
+        print("Error:", e)
         return jsonify({'message': str(e)}), 500
+
+@app.route('/api/appealdecision', methods=['PUT'])
+def update_appeal_decision():
+    conn = None
+    cur = None
+    try:
+        appeal_id = request.args.get('appealId')
+        if not appeal_id:
+            return jsonify({'error': 'appealId is required as a query parameter'}), 400
+
+        data = request.get_json()
+        appeal_status = data.get('appealStatus')
+        decision_date = data.get('decisionDate')
+        decision = data.get('decision')
+
+        if decision_date:
+            try:
+                decision_date = datetime.datetime.strptime(decision_date, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'error': 'Invalid decisionDate format. Use YYYY-MM-DD'}), 400
+
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        query = """
+            UPDATE appeals
+            SET appealstatus = %s,
+                decisiondate = %s,
+                decision = %s
+            WHERE appealid = %s
+        """
+        cur.execute(query, (appeal_status, decision_date, decision, appeal_id))
+        conn.commit()
+
+        if cur.rowcount == 0:
+            return jsonify({'message': 'Appeal not found'}), 404
+
+        return jsonify({'message': 'Appeal decision updated successfully'}), 200
+
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({'error': 'Failed to update appeal decision'}), 500
+
     finally:
-        db.close()
+        if cur is not None:
+            cur.close()
+        if conn is not None:
+            conn.close()
+
+@app.route('/api/lawyerappeals', methods=['GET'])
+@login_required
+def get_lawyerappeals():
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # Step 1: Get lawyerid using current_user.userid
+        cur.execute("SELECT lawyerid FROM lawyer WHERE userid = %s;", (current_user.userid,))
+        lawyer_row = cur.fetchone()
+        if not lawyer_row:
+            return jsonify({'message': 'Lawyer profile not found'}), 404
+
+        lawyerid = lawyer_row[0]
+
+        # Step 2: Get appeals for cases accessible to this lawyer
+        query = """
+        SELECT 
+            a.appealdate,
+            a.appealstatus,
+            a.decisiondate,
+            a.decision,
+            c.title AS casename,
+            ct.courtname
+        FROM appeals a
+        JOIN cases c ON c.caseid = a.caseid
+        JOIN courtaccess ca ON ca.caseid = c.caseid
+        JOIN court ct ON ct.courtid = ca.courtid
+        WHERE a.caseid IN (
+            SELECT caseid FROM caselawyeraccess WHERE lawyerid = %s
+        );
+        """
+        cur.execute(query, (lawyerid,))
+        rows = cur.fetchall()
+
+        result = [
+            {
+                'appealdate': row[0],
+                'status': row[1],
+                'decisiondate': row[2],
+                'decision': row[3],
+                'casename': row[4],
+                'courtname': row[5]
+            }
+            for row in rows
+        ]
+
+        cur.close()
+        conn.close()
+        return jsonify({'appeals': result}), 200
+
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
 
 
-#Hearings API
+@app.route('/api/hearings/remarks', methods=['PUT'])
+@login_required
+def update_hearing_remarks():
+    try:
+        hearing_id = request.args.get('hearingid')
+        if not hearing_id:
+            return jsonify({'error': 'hearingid query parameter is required'}), 400
+
+        data = request.get_json()
+        remarks = data.get('remarks')
+        if remarks is None:
+            return jsonify({'error': 'remarks field is required in JSON body'}), 400
+
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            "UPDATE hearings SET remarks = %s WHERE hearingid = %s",
+            (remarks, hearing_id)
+        )
+
+        if cur.rowcount == 0:
+            return jsonify({'error': 'Hearing not found'}), 404
+
+        conn.commit()
+        return jsonify({'message': 'Remarks updated successfully'}), 200
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print("Error updating remarks:", e)
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
 @app.route('/api/hearings', methods=['POST'])
 @login_required
-# @log_action(action_type = "CREATE", entity_type = "Hearings")
 def schedule_hearing():
-    db = SessionLocal()
     try:
         data = request.get_json()
-        hearing = Hearings(
-            caseid=data.get('caseid'),
-            hearingdate=data.get('hearingdate'),
-            hearingtime=data.get('hearingtime'),
-            courtroomid=data.get('courtroomid')
-        )
-        db.add(hearing)
-        db.commit()
+
+        casetitle = data.get('casetitle')
+        courtname = data.get('courtname')
+        hearingdate = data.get('hearingdate')
+        hearingtime = data.get('hearingtime')
+        remarks = data.get('remarks', None)  # Optional
+
+        if not all([casetitle, courtname, hearingdate, hearingtime]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Establish DB connection
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # Get judgeid from current user
+        cur.execute("SELECT judgeid FROM judge WHERE userid = %s", (current_user.userid,))
+        judge_row = cur.fetchone()
+        if not judge_row:
+            return jsonify({'error': 'Judge profile not found'}), 404
+        judgeid = judge_row[0]
+
+        # Get caseid from case title
+        cur.execute("SELECT caseid FROM cases WHERE title = %s LIMIT 1", (casetitle,))
+        case_row = cur.fetchone()
+        if not case_row:
+            return jsonify({'error': 'Case not found'}), 404
+        caseid = case_row[0]
+
+        # Insert hearing
+        cur.execute("""
+            INSERT INTO hearings (caseid, judgeid, hearingdate, hearingtime,remarks)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (caseid, judgeid, hearingdate, hearingtime, remarks))
+
+        conn.commit()
         return jsonify({'message': 'Hearing scheduled successfully'}), 201
+
     except Exception as e:
-        db.rollback()
-        return jsonify({'message': str(e)}), 500
+        print("Error scheduling hearing:", e)
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+
     finally:
-        db.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
         
 @app.route('/api/hearings', methods=['GET'])
 @login_required
@@ -1552,43 +2384,49 @@ def get_hearings():
         db.close()
 
 
-# Bails API
 @app.route('/api/bails', methods=['POST'])
 @login_required
-# @log_action(action_type = "CREATE", entity_type = "Bails")
 def create_bail():
-    db = SessionLocal()
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
     try:
         data = request.get_json()
-        case_id = data.get('case_id')
-        amount = data.get('amount')
-        bail_date = data.get('bail_date') or datetime.date.today()
-        status = data.get('status', 'Pending')
+        casename = data.get('casename')
+        bail_date = data.get('bail_date') or datetime.datetime.date.today()
+        suretyid = data.get('suretyid')
 
-        if not case_id or not amount:
-            return jsonify({'message': 'Case ID and amount are required'}), 400
+        if not casename:
+            return jsonify({'message': 'Case name is required'}), 400
 
-        # Check if the case exists
-        case = db.query(Cases).get(case_id)
-        if not case:
+        # Find case ID based on case name
+        cursor.execute("SELECT caseid FROM cases WHERE title = %s", (casename,))
+        result = cursor.fetchone()
+
+        if not result:
             return jsonify({'message': 'Case not found'}), 404
 
-        # Create a new bail record
-        new_bail = Bail(
-            caseid=case_id,
-            amount=Decimal(amount),
-            baildate=bail_date,
-            status=status
-        )
-        db.add(new_bail)
-        db.commit()
+        case_id = result[0]
 
-        return jsonify({'message': 'Bail created successfully', 'bail_id': new_bail.bailid}), 201
+        # Insert bail record
+        cursor.execute("""
+            INSERT INTO bail (caseid, baildate,bailstatus,suretyid)
+            VALUES (%s, %s,%s,%s)
+            RETURNING bailid
+        """, (case_id, bail_date, 'Pending',suretyid))
+
+        bail_id = cursor.fetchone()[0]
+        conn.commit()
+
+        return jsonify({'message': 'Bail created successfully', 'bail_id': bail_id}), 201
+
     except Exception as e:
-        db.rollback()
+        conn.rollback()
         return jsonify({'message': str(e)}), 500
+
     finally:
-        db.close()
+        cursor.close()
+        conn.close()
 
 @app.route('/api/bails/<int:case_id>', methods=['GET'])
 @login_required
@@ -1697,6 +2535,93 @@ def update_bail(bail_id):
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
+
+@app.route('/api/evidence', methods=['GET'])
+def get_evidence():
+    try:
+        # Step 0: Connect to the database
+        conn = get_pg_connection()
+        cursor = conn.cursor()
+
+        # Step 1: Get current user ID
+        userid = current_user.userid  # Ensure this is retrieved securely
+
+        # Step 2: Get court_id from courtregistrar
+        cursor.execute("SELECT courtid FROM courtregistrar WHERE userid = %s", (userid,))
+        registrar = cursor.fetchone()
+        if not registrar:
+            return jsonify({'message': 'CourtRegistrar not found'}), 404
+
+        court_id = registrar[0]
+
+        # Step 3: Get accessible case IDs for this court
+        cursor.execute("SELECT caseid FROM courtaccess WHERE courtid = %s", (court_id,))
+        case_rows = cursor.fetchall()
+        if not case_rows:
+            return jsonify({"error": "No cases found for this court"}), 404
+
+        case_ids = [row[0] for row in case_rows]
+
+        # Step 4: Fetch evidence along with case title and caseid
+        format_strings = ','.join(['%s'] * len(case_ids))
+        evidence_query = f"""
+            SELECT e.evidenceid, e.evidencetype, e.description, e.submitteddate, e.filepath,
+                   c.title, c.caseid
+            FROM evidence e
+            JOIN cases c ON e.caseid = c.caseid
+            WHERE e.caseid IN ({format_strings})
+        """
+        cursor.execute(evidence_query, case_ids)
+        evidence_rows = cursor.fetchall()
+
+        result = []
+        for row in evidence_rows:
+            evidenceid, evidencetype, description, submitteddate, filepath, casetitle, caseid = row
+
+            # Step 5: Fetch lawyerid from caselawyeraccess
+            cursor.execute("SELECT lawyerid FROM caselawyeraccess WHERE caseid = %s", (caseid,))
+            lawyer_row = cursor.fetchone()
+            lawyername = None
+            if lawyer_row:
+                lawyerid = lawyer_row[0]
+
+                # Step 6: Get userid from lawyer table
+                cursor.execute("SELECT userid FROM lawyer WHERE lawyerid = %s", (lawyerid,))
+                lawyer_user_row = cursor.fetchone()
+                if lawyer_user_row:
+                    lawyer_userid = lawyer_user_row[0]
+
+                    # Step 7: Get name from users table
+                    cursor.execute("SELECT firstname, lastname FROM users WHERE userid = %s", (lawyer_userid,))
+                    name_row = cursor.fetchone()
+                    if name_row:
+                        lawyername = f"{name_row[0]} {name_row[1]}"
+
+            # Add evidence to result
+            result.append({
+                "id": evidenceid,
+                "evidenceType": evidencetype,
+                "description": description,
+                "submissionDate": submitteddate.strftime('%Y-%m-%d') if submitteddate else None,
+                "caseName": casetitle,
+                "lawyerName": lawyername,
+                "file": filepath
+            })
+
+        return jsonify({"evidence": result})
+
+    except Exception as ex:
+        print("Error:", ex)
+        print("Full traceback:", traceback.format_exc())
+        return jsonify({"error": "Failed to fetch evidence"}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
         
 @app.route('/api/bails/<int:bail_id>', methods=['DELETE'])
 @login_required
@@ -1717,29 +2642,72 @@ def delete_bail(bail_id):
     finally:
         db.close()
 
-# Surety API
 @app.route('/api/surety', methods=['POST'])
 @login_required
-# @log_action(action_type = "CREATE", entity_type = "Surety")
 def create_surety():
-    db = SessionLocal()
+    conn = get_pg_connection()
+    cursor = conn.cursor()
+
     try:
         data = request.get_json()
-        surety = Surety(
-            name=data.get('name'),
-            cnic=data.get('cnic'),
-            address=data.get('address'),
-            relationship=data.get('relationship'),
-            bailid=data.get('bailid')
-        )
-        db.add(surety)
-        db.commit()
-        return jsonify({'message': 'Surety created successfully'}), 201
+
+        firstname = data.get('firstname')
+        lastname = data.get('lastname')
+        cnic = data.get('cnic')
+        phone = data.get('phone')
+        email = data.get('email')
+        address = data.get('address')
+        past_history = data.get('past_history')
+        casename = data.get('casename')
+
+        if not all([firstname, lastname, cnic, phone, email, address, casename]):
+            return jsonify({'message': 'Missing required fields'}), 400
+
+        # Step 1: Get case ID from casename
+        cursor.execute("SELECT caseid FROM cases WHERE casename = %s", (casename,))
+        case_result = cursor.fetchone()
+
+        if not case_result:
+            return jsonify({'message': 'Case not found'}), 404
+
+        case_id = case_result[0]
+
+        # Step 2: Get bail ID for the given case
+        cursor.execute("SELECT bailid FROM bail WHERE caseid = %s", (case_id,))
+        bail_result = cursor.fetchone()
+
+        if not bail_result:
+            return jsonify({'message': 'Bail not found for this case'}), 404
+
+        bail_id = bail_result[0]
+
+        # Step 3: Insert new surety
+        cursor.execute("""
+            INSERT INTO surety (firstname, lastname, cnic, phone, email, address, past_history)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING suretyid
+        """, (firstname, lastname, cnic, phone, email, address, past_history))
+
+        surety_id = cursor.fetchone()[0]
+
+        # Step 4: Update bail with suretyid
+        cursor.execute("""
+            UPDATE bail
+            SET suretyid = %s
+            WHERE bailid = %s
+        """, (surety_id, bail_id))
+
+        conn.commit()
+
+        return jsonify({'message': 'Surety created and linked to bail successfully'}), 201
+
     except Exception as e:
-        db.rollback()
+        conn.rollback()
         return jsonify({'message': str(e)}), 500
+
     finally:
-        db.close()
+        cursor.close()
+        conn.close()
 
 @app.route('/api/surety/<int:surety_id>', methods=['GET'])
 @login_required
@@ -1841,7 +2809,6 @@ def get_surety_by_lawyer():
 
 @app.route('/api/surety/<int:surety_id>', methods=['DELETE'])
 @login_required
-# @log_action(action_type = "DELETE", entity_type = "Surety")
 def delete_surety(surety_id):
     db = SessionLocal()
     try:
@@ -1862,7 +2829,6 @@ def delete_surety(surety_id):
 
 @app.route('/api/cases/<int:case_id>/history', methods=['POST'])
 @login_required
-# @log_action(action_type = "CREATE", entity_type = "CaseHistory")
 def add_case_history(case_id):
     db = SessionLocal()
     try:
@@ -1897,7 +2863,6 @@ def add_case_history(case_id):
         
 @app.route('/api/cases/history/<int:history_id>', methods=['PUT'])
 @login_required
-# @log_action(action_type = "UPDATE", entity_type = "CaseHistory")
 def update_case_history(history_id):
     db = SessionLocal()
     try:
@@ -1921,7 +2886,6 @@ def update_case_history(history_id):
         
 @app.route('/api/cases/history/<int:history_id>', methods=['DELETE'])
 @login_required
-# @log_action(action_type = "DELETE", entity_type = "CaseHistory")
 def delete_case_history(history_id):
     db = SessionLocal()
     try:
@@ -1939,44 +2903,6 @@ def delete_case_history(history_id):
     finally:
         db.close()
         
-#Evidence API
-@app.route('/api/cases/<int:case_id>/evidence', methods=['POST'])
-@login_required
-# @log_action(action_type = "CREATE", entity_type = "Evidence")
-def add_evidence(case_id):
-    db = SessionLocal()
-    try:
-        data = request.get_json()
-        evidencetype = data.get('evidencetype')
-        description = data.get('description')
-        filepath = data.get('filepath')  # Path to the uploaded file
-        submitteddate = data.get('submitteddate') or datetime.date.today()
-
-        if not evidencetype or not description:
-            return jsonify({'message': 'Evidence type and description are required'}), 400
-
-        # Check if the case exists
-        case = db.query(Cases).get(case_id)
-        if not case:
-            return jsonify({'message': 'Case not found'}), 404
-
-        # Add evidence
-        new_evidence = Evidence(
-            caseid=case_id,
-            evidencetype=evidencetype,
-            description=description,
-            filepath=filepath,
-            submitteddate=submitteddate
-        )
-        db.add(new_evidence)
-        db.commit()
-
-        return jsonify({'message': 'Evidence added successfully', 'evidence_id': new_evidence.evidenceid}), 201
-    except Exception as e:
-        db.rollback()
-        return jsonify({'message': str(e)}), 500
-    finally:
-        db.close()
 
 @app.route('/api/cases/<int:case_id>/evidence', methods=['GET'])
 @login_required
@@ -2007,18 +2933,18 @@ def get_evidence_for_case(case_id):
 def get_evidence_for_logged_in_lawyer():
     db = SessionLocal()
     try:
-        # 1. Get the logged-in user
+       
         user = db.query(Users).filter_by(userid=current_user.userid).first()
 
         if not user or user.role != 'Lawyer':
             return jsonify({'message': 'Access denied: User is not a lawyer'}), 403
 
-        # 2. Get the lawyer record
+        
         lawyer = db.query(Lawyer).filter_by(userid=user.userid).first()
         if not lawyer:
             return jsonify({'message': 'Lawyer profile not found'}), 404
 
-        # 3. Get all case IDs assigned to the lawyer
+        
         case_ids = db.query(t_caselawyeraccess.c.caseid).filter(
             t_caselawyeraccess.c.lawyerid == lawyer.lawyerid
         ).all()
@@ -2073,59 +2999,54 @@ def update_evidence(evidence_id):
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
-        
-@app.route('/api/evidence', methods=['GET'])
-def get_evidence():
-    db = SessionLocal()
+@app.route('/api/evidence', methods=['POST'])
+def add_evidence():
     try:
-        # Step 1: Get the current user's userid (assuming you have current user id in session)
-        userid = current_user.userid  # Implement this method to get the logged-in user's ID
+        data = request.get_json()
 
-        # Step 2: Get the court_id from the courtregistrar (assuming there's a `CourtRegistrar` model)
-        court_registrar = db.query(Courtregistrar).filter_by(userid=userid).first()
+        evidencetype = data.get('evidencetype')
+        description = data.get('description')
+        submissiondate = data.get('submissiondate')  # e.g. '2024-05-10'
+        casename = data.get('casename')
 
-        if not court_registrar:
-            return jsonify({'message': 'CourtRegistrar not found'}), 404
+        if not all([evidencetype, description, submissiondate, casename]):
+            return jsonify({'error': 'Missing required fields'}), 400
 
-        # Step 3: Get the courtId associated with the CourtRegistrar
-        court_id = court_registrar.courtid
+        conn = get_pg_connection()
+        cur = conn.cursor()
 
-        # Step 4: Fetch court access cases related to the courtId using the manually defined table (t_courtaccess)
-        court_access_cases = db.execute(
-            t_courtaccess.select().filter_by(courtid=court_id)
-        ).fetchall()
+        # Step 1: Find caseid from casename
+        cur.execute("SELECT caseid FROM cases WHERE title = %s", (casename,))
+        case_result = cur.fetchone()
 
-        if not court_access_cases:
-            return jsonify({"error": "No cases found for this court"}), 404
+        if not case_result:
+            return jsonify({'error': 'Case not found'}), 404
 
-        # Extract case IDs from court access cases (access by index, assuming 'case_id' is the first element)
-        case_ids = [case[0] for case in court_access_cases]  # Assuming case_id is the first column
+        caseid = case_result[0]
 
-        # Step 5: Fetch evidence linked to these case IDs
-        evidence_list = db.query(Evidence).join(Cases).filter(Cases.caseid.in_(case_ids)).all()
+        # Step 2: Insert evidence
+        cur.execute("""
+            INSERT INTO evidence (evidencetype, description, submitteddate, caseid)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            evidencetype,
+            description,
+            datetime.datetime.strptime(submissiondate, '%Y-%m-%d'),  # Format check
+            caseid
+        ))
 
-        # Prepare the response
-        result = []
-        for e in evidence_list:
-            result.append({
-                "id": e.evidenceid,
-                "evidenceType": e.evidencetype,
-                "description": e.description,
-                "submissionDate": e.submitteddate.strftime('%Y-%m-%d') if e.submitteddate else None,
-                "caseName": e.cases.title if e.cases else None,
-                # "lawyerName": e.cases.lawyername if e.cases else None,
-                "file": e.filepath
-            })
+        conn.commit()
 
-        return jsonify({"evidence": result})
+        return jsonify({'message': 'Evidence added successfully'}), 201
 
-    except Exception as ex:
-        # Print the full error traceback for debugging
-        print("Error: ", ex)
-        print("Full traceback: ", traceback.format_exc())
-        return jsonify({"error": "Failed to fetch evidence"}), 500
+    except Exception as e:
+        print("Error:", e)
+        print(traceback.format_exc())
+        return jsonify({'error': 'Failed to add evidence'}), 500
+
     finally:
-        db.close()
+        if 'cur' in locals(): cur.close()
+        if 'conn' in locals(): conn.close()
 
 
 @app.route('/api/evidence/<int:evidence_id>', methods=['DELETE'])
@@ -2412,26 +3333,121 @@ def upload_case_document(case_id):
     finally:
         db.close()
 
-@app.route('/api/cases/<int:case_id>/documents', methods=['GET'])
-@login_required
-def get_case_documents(case_id):
-    db = SessionLocal()
+@app.route('/api/documents', methods=['POST'])
+def upload_document():
+    data = request.get_json()
+
+    required_fields = ['documenttitle', 'documenttype', 'uploaddate']
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+
     try:
-        documents = db.query(Documentcase).filter_by(caseid=case_id).all()
-        result = [
-            {
-                'document_id': d.documentid,
-                'documenttitle': d.documenttitle,
-                'filepath': d.filepath,
-                'submissiondate': d.submissiondate.isoformat()
-            }
-            for d in documents
-        ]
-        return jsonify({'documents': result}), 200
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        insert_query = """
+            INSERT INTO documents (documenttitle, documenttype, uploaddate)
+            VALUES (%s, %s, %s)
+            RETURNING documentid;
+        """
+        cur.execute(insert_query, (
+            data['documenttitle'],
+            data['documenttype'],
+            datetime.datetime.strptime(data['uploaddate'], '%Y-%m-%dT%H:%M:%S.%fZ'),
+            # data['lawyerid']
+        ))
+
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({'message': 'Document uploaded successfully', 'document_id': new_id}), 201
+
     except Exception as e:
-        return jsonify({'message': str(e)}), 500
+        logging.error("Error in uploading documents:", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/documents', methods=['GET'])
+@login_required
+def get_documents():
+    user_id = current_user.userid
+    if not user_id:
+        return jsonify({"error": "User not authenticated"}), 401
+
+    conn = get_pg_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        query = """
+            SELECT d.documenttitle, d.documenttype, d.uploaddate
+            FROM documents d
+            JOIN documentcase cd ON d.documentid = cd.documentid
+            JOIN caselawyeraccess la ON cd.caseid = la.caseid
+            JOIN lawyer l ON la.lawyerid = l.lawyerid
+            WHERE l.userid = %s
+            ORDER BY d.uploaddate DESC
+        """
+        cur.execute(query, (user_id,))
+        documents = cur.fetchall()
+
+        # Convert datetime to ISO format string
+        for doc in documents:
+            if isinstance(doc['uploaddate'], datetime.datetime):
+                doc['uploaddate'] = doc['uploaddate'].isoformat()
+
+        return jsonify({"documents": documents})
+    except Exception as e:
+        print("Error fetching documents:", e)
+        return jsonify({"error": "Failed to fetch documents"}), 500
     finally:
-        db.close()
+        cur.close()
+        conn.close()
+        
+@app.route('/api/clientdocuments', methods=['GET'])
+@login_required
+def get_client_documents():
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        query = """
+        SELECT DISTINCT
+            d.documentid AS id,
+            d.documenttitle AS title,
+            to_char(d.uploaddate, 'YYYY-MM-DD') AS uploadDate,
+            d.documenttype,
+            d.documenttype AS fileType,
+            d.filepath AS path
+        FROM caseparticipant cp
+        JOIN caseparticipantaccess cpa ON cp.participantid = cpa.participantid
+        JOIN documentcase dc ON dc.caseid = cpa.caseid
+        JOIN documents d ON d.documentid = dc.documentid
+        WHERE cp.userid = %s
+        ORDER BY uploadDate DESC;
+        """
+
+        cur.execute(query, (current_user.userid,))
+        rows = cur.fetchall()
+
+        documents = []
+        for row in rows:
+            documents.append({
+                "id": row[0],
+                "title": row[1],
+                "uploadDate": row[2],
+                "documenttype": row[3],
+                "fileType": row[4],
+                "path": row[5],
+            })
+
+        cur.close()
+        conn.close()
+
+        return jsonify(success=True, documents=documents), 200
+
+    except Exception as e:
+        print("Error fetching client documents:", e)
+        return jsonify(success=False, message=str(e)), 500
 
 @app.route('/api/documents/<int:document_id>', methods=['DELETE'])
 @login_required
@@ -2452,43 +3468,62 @@ def delete_case_document(document_id):
     finally:
         db.close()
 
-#FinalDecision API
 @app.route('/api/cases/<int:case_id>/final-decision', methods=['POST'])
 @login_required
-# @log_action(action_type = "CREATE", entity_type = "FinalDecision")
 def add_final_decision(case_id):
-    db = SessionLocal()
+    conn = None
+    cur = None
     try:
         data = request.get_json()
         decision_summary = data.get('decisionsummary')
         verdict = data.get('verdict')
-        decision_date = data.get('decisiondate') or datetime.date.today()
+        decision_date = data.get('decisiondate') or datetime.date.today().isoformat()
 
         if not decision_summary or not verdict:
             return jsonify({'message': 'Decision summary and verdict are required'}), 400
 
-        # Check if the case exists
-        case = db.query(Cases).get(case_id)
-        if not case:
+        # Establish raw connection
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # Check if case exists
+        cur.execute("SELECT 1 FROM cases WHERE caseid = %s", (case_id,))
+        if not cur.fetchone():
             return jsonify({'message': 'Case not found'}), 404
 
-        # Add final decision
-        final_decision = Finaldecision(
-            caseid=case_id,
-            decisionsummary=decision_summary,
-            verdict=verdict,
-            decisiondate=decision_date
-        )
-        db.add(final_decision)
-        db.commit()
+        # Insert final decision
+        cur.execute("""
+            INSERT INTO finaldecision (caseid, decisionsummary, verdict, decisiondate)
+            VALUES (%s, %s, %s, %s)
+            RETURNING decisionid
+        """, (case_id, decision_summary, verdict, decision_date))
 
-        return jsonify({'message': 'Final decision added successfully', 'decision_id': final_decision.decisionid}), 201
-    except Exception as e:
-        db.rollback()
-        return jsonify({'message': str(e)}), 500
-    finally:
-        db.close()
+        decision_id = cur.fetchone()[0]
+        conn.commit()
         
+        update_query = """
+    UPDATE cases SET status = 'Closed' WHERE caseid = %s
+"""
+        cur.execute(update_query, (case_id,))
+
+        conn.commit()
+
+        return jsonify({
+            'message': 'Final decision added successfully',
+            'decision_id': decision_id
+        }), 201
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'message': str(e)}), 500
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+            
 @app.route('/api/cases/<int:case_id>/final-decision', methods=['GET'])
 @login_required
 def get_final_decision(case_id):
@@ -2509,6 +3544,57 @@ def get_final_decision(case_id):
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
+        
+        
+@app.route('/api/finaldecision', methods=['POST'])
+def insert_final_decision():
+    data = request.get_json()
+
+    required_fields = ['casename', 'verdict', 'decisiondate', 'decisionsummary']
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    casename = data['casename']
+    verdict = data['verdict']
+    decisiondate = data['decisiondate']
+    decisionsummary = data['decisionsummary']
+
+    conn = None
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # Step 1: Get case ID from casename
+        cur.execute("SELECT caseid FROM cases WHERE title = %s", (casename,))
+        case = cur.fetchone()
+
+        if not case:
+            return jsonify({"error": "Case not found"}), 404
+
+        caseid = case[0]
+
+        # Step 2: Insert into finaldecision
+        insert_query = """
+            INSERT INTO finaldecision (caseid, verdict, decisiondate, decisionsummary)
+            VALUES (%s, %s, %s, %s)
+            RETURNING finaldecisionid
+        """
+        cur.execute(insert_query, (caseid, verdict, decisiondate, decisionsummary))
+        finaldecision_id = cur.fetchone()[0]
+
+        conn.commit()
+        cur.close()
+        return jsonify({"message": "Final decision submitted", "id": finaldecision_id}), 201
+
+    except Exception as e:
+        print("Error:", e)
+        print(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return jsonify({"error": "Failed to insert final decision"}), 500
+    finally:
+        if conn:
+            conn.close()        
         
 @app.route('/api/final-decision/<int:decision_id>', methods=['PUT'])
 @login_required
@@ -2597,7 +3683,7 @@ def get_remands_for_case(case_id):
 
 @app.route('/api/remands/<int:remand_id>', methods=['PUT'])
 @login_required
-# @log_action(action_type = "UPDATE", entity_type = "Remands")
+
 def update_remand(remand_id):
     db = SessionLocal()
     try:
@@ -2619,10 +3705,196 @@ def update_remand(remand_id):
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
+        
+        
+@app.route('/api/remands', methods=['GET'])
+@login_required
+def get_remands():
+    user_id = current_user.userid
 
+    query = """
+        WITH courtregistrar AS (
+            SELECT registrarid AS registrarid, courtid
+            FROM courtregistrar
+            WHERE userid = %s
+        ),
+        caseids AS (
+            SELECT ca.caseid
+            FROM courtaccess ca
+            JOIN courtregistrar r ON ca.courtid = r.courtid
+        )
+        SELECT
+            c.title AS casename,
+            r.remandtype,
+            r.remanddate,
+            r.remandreason,
+            r.status,
+            (r.enddate - r.startdate) || ' days' AS duration
+        FROM remands r
+        JOIN caseids ci ON r.caseid = ci.caseid
+        JOIN cases c ON c.caseid = r.caseid
+    """
+
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(query, (user_id,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Map rows to match frontend schema
+        remands = []
+        for idx, row in enumerate(rows, 1):
+            remands.append({
+                "id": idx,
+                "title": row["casename"],
+                "lawyername": "-",  # Placeholder or extend with JOIN
+                "clientname": "-",  # Placeholder or extend with JOIN
+                "remandtype": row["remandtype"],
+                "remanddate": row["remanddate"],
+                "remandreason": row["remandreason"],
+                "status": row["status"],
+                "duration": row["duration"]
+            })
+
+        return jsonify(remands), 200
+
+    except Exception as e:
+        print("Error fetching remands:", e)
+        return jsonify({'error': 'Failed to fetch remands'}), 500
+
+@app.route('/api/remands', methods=['POST'])
+@login_required
+def create_remand():
+    data = request.get_json()
+
+    case_title = data.get("caseName")
+    remand_type = data.get("remandType")
+    remand_date = data.get("remandDate")
+    remand_reason = data.get("remandReason")
+    status = data.get("status")
+    duration_days = int(data.get("duration", 0))
+
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Get caseid by case title
+        cur.execute("SELECT caseid FROM cases WHERE title = %s", (case_title,))
+        case_row = cur.fetchone()
+        if not case_row:
+            return jsonify({'error': 'Case not found'}), 404
+        case_id = case_row['caseid']
+
+        # Calculate dates
+        start_date = datetime.datetime.strptime(remand_date, '%Y-%m-%d')
+        end_date = start_date + datetime.timedelta(days=duration_days)
+
+        # Insert remand
+        cur.execute("""
+            INSERT INTO remands (caseid, remandtype, remanddate, remandreason, status, startdate, enddate)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING remandid
+        """, (case_id, remand_type, remand_date, remand_reason, status, start_date.date(), end_date.date()))
+        remand_id = cur.fetchone()['remandid']
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "id": remand_id,
+            "caseName": case_title,
+            "lawyerName": "-",  # You can extend with join
+            "clientName": "-",
+            "remandType": remand_type,
+            "remandDate": remand_date,
+            "remandReason": remand_reason,
+            "status": status,
+            "duration": f"{duration_days} days"
+        }), 201
+
+    except Exception as e:
+        print("Error inserting remand:", e)
+        return jsonify({'error': 'Failed to create remand'}), 500
+    
+    
+@app.route('/api/judges', methods=['POST'])
+@login_required
+def create_judge():
+    data = request.get_json()
+
+    full_name = data.get("name", "")
+    position = data.get("position")
+    expyears = data.get("experience")
+    appointment_date = data.get("appointmentDate")
+    specialization = data.get("specialization")
+    assigned_titles = data.get("assignedCases", [])
+
+    try:
+        # Split name
+        parts = full_name.strip().split()
+        firstname = parts[0]
+        lastname = ' '.join(parts[1:]) if len(parts) > 1 else ''
+
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Get the courtid via the logged-in registrar
+        cur.execute("SELECT courtid FROM courtregistrar WHERE userid = %s", (current_user.userid,))
+        reg_row = cur.fetchone()
+        if not reg_row:
+            return jsonify({"error": "Registrar not assigned to court"}), 403
+        courtid = reg_row["courtid"]
+
+        # Insert user
+        cur.execute("""
+            INSERT INTO users (firstname, lastname, role)
+            VALUES (%s, %s, 'Judge')
+            RETURNING userid
+        """, (firstname, lastname))
+        userid = cur.fetchone()['userid']
+
+        # Insert judge
+        cur.execute("""
+            INSERT INTO judge (userid, position, expyears, appointmentdate, specialization)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING judgeid
+        """, (userid, position, expyears, appointment_date, specialization))
+        judgeid = cur.fetchone()['judgeid']
+
+        # Assign judge to court
+        cur.execute("INSERT INTO judgeworksin (judgeid, courtid) VALUES (%s, %s)", (judgeid, courtid))
+
+        # Assign judge to cases (lookup caseids)
+        for title in assigned_titles:
+            cur.execute("SELECT caseid FROM cases WHERE title = %s", (title,))
+            case_row = cur.fetchone()
+            if case_row:
+                cur.execute("INSERT INTO judgeaccess (judgeid, caseid) VALUES (%s, %s)", (judgeid, case_row['caseid']))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "judgeid": judgeid,
+            "name": full_name,
+            "position": position,
+            "expyears": expyears,
+            "appointmentdate": appointment_date,
+            "specialization": specialization,
+            "assigned_cases": assigned_titles
+        }), 201
+
+    except Exception as e:
+        print("Error creating judge:", e)
+        return jsonify({'error': 'Failed to create judge'}), 500
+    
 @app.route('/api/remands/<int:remand_id>', methods=['DELETE'])
 @login_required
-# @log_action(action_type = "DELETE", entity_type = "Remands")
+
 def delete_remand(remand_id):
     db = SessionLocal()
     try:
@@ -2672,31 +3944,99 @@ def check_case_access(case_id):
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
     try:
-        db = SessionLocal()
-        
-        # Querying the correct table LogTable
-        logs = db.query(Logtable).all()
-        
-        # Serializing data
-        logs_data = [
-            {
-                'logid': log.logid,
-                'adminid': log.adminid,
-                'actiontype': log.actiontype,
-                'description': log.description,
-                'status': log.status,
-                'actiontimestamp': log.actiontimestamp,
-                'entitytype': log.entitytype,
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        cur.execute("""
+            SELECT 
+                l.logid, l.adminid, l.actiontype, l.description, 
+                l.status, l.actiontimestamp, l.entitytype,
+                a.adminid AS admin_adminid
+                FROM logtable l
+            LEFT JOIN admin a ON l.adminid = a.adminid
+            ORDER BY l.actiontimestamp DESC
+        """)
+        rows = cur.fetchall()
+
+        logs_data = []
+        for row in rows:
+            logs_data.append({
+                'logid': row['logid'],
+                'adminid': row['adminid'],
+                'actiontype': row['actiontype'],
+                'description': row['description'],
+                'status': row['status'],
+                'actiontimestamp': row['actiontimestamp'],
+                'entitytype': row['entitytype'],
                 'admin': {
-                    'adminid': log.admin.adminid if log.admin else None,
-                    'username': log.admin.username if log.admin else None,
+                    'adminid': row['admin_adminid'],
+                    
                 }
-            }
-            for log in logs
-        ]
+            })
+
+        cur.close()
+        conn.close()
         return jsonify(logs_data), 200
+
     except Exception as e:
+        if conn:
+            conn.close()
         return jsonify({'error': str(e)}), 500
+
+    
+@app.route('/api/logs/activity', methods=['GET'])
+@login_required
+def get_dashboard_activity_logs():
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        cur.execute("""
+            SELECT 
+                l.description,
+                l.entitytype,
+                l.actiontimestamp
+            FROM logtable l
+            WHERE l.entitytype IN ('case', 'prosecutor', 'casehistory', 'finaldecision', 'lawyer', 'judge')
+            ORDER BY l.actiontimestamp DESC
+            LIMIT 7
+        """)
+        rows = cur.fetchall()
+
+        activity_logs = []
+        for row in rows:
+            activity_logs.append({
+                'activity': row['description'],
+                'type': row['entitytype'],
+                'timestamp': row['actiontimestamp'].strftime("%Y-%m-%d %I:%M %p")
+            })
+
+        cur.close()
+        conn.close()
+        return jsonify(activity_logs), 200
+
+    except Exception as e:
+        if conn:
+            conn.close()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/adminprofile', methods=['GET'])
+def get_admin_profile():
+    db = SessionLocal()
+    user_id = current_user.userid  
+    
+    if not user_id:
+        return jsonify(success=False, message="User ID is required."), 400
+
+    return jsonify(success=True, data={
+        'firstName': current_user.firstname,
+        'lastName': current_user.lastname,
+        'email': current_user.email,
+        'phone': current_user.phoneno,
+        'cnic': current_user.cnic,
+        'dob': current_user.dob.isoformat() if current_user.dob else '',
+        
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)

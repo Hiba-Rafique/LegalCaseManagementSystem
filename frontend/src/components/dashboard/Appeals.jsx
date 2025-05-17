@@ -12,30 +12,28 @@ const Appeals = () => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [appeals, setAppeals] = useState([]);
-  const [loading, setLoading] = useState(true);  // Track loading state
-  const [error, setError] = useState(null);  // Track error state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     caseName: '',
-    type: '',
     court: '',
     description: ''
   });
 
   useEffect(() => {
-    // Fetch appeals data from the API
     const fetchAppeals = async () => {
       try {
-        const response = await fetch('/api/appeals');
+        const response = await fetch('/api/lawyerappeals');
         if (!response.ok) {
           throw new Error('Failed to fetch appeals');
         }
         const data = await response.json();
-        setAppeals(data.appeals);  // Update state with fetched data
+        setAppeals(data.appeals);
       } catch (error) {
-        setError(error.message);  // Set error state if request fails
+        setError(error.message);
       } finally {
-        setLoading(false);  // Set loading to false after data is fetched
+        setLoading(false);
       }
     };
 
@@ -44,10 +42,12 @@ const Appeals = () => {
 
   const filteredAppeals = useMemo(() => {
     return appeals.filter(a => {
-      const matchesSearch =
-        a.casename.toLowerCase().includes(search.toLowerCase()) ||
-        a.type.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = status === 'All' || a.status === status;
+      const caseName = a?.casename || "";
+      const appealStatus = a?.status || "";
+
+      const matchesSearch = caseName.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = status === 'All' || appealStatus === status;
+
       return matchesSearch && matchesStatus;
     });
   }, [search, status, appeals]);
@@ -62,7 +62,6 @@ const Appeals = () => {
         },
         body: JSON.stringify({
           casename: formData.caseName,
-          casetype: formData.type,
           court: formData.court,
           description: formData.description
         }),
@@ -74,21 +73,20 @@ const Appeals = () => {
 
       const data = await response.json();
 
-      // If successful, update the state
       setAppeals([data.appeal, ...appeals]);
       setShowModal(false);
-      setFormData({ caseName: '', type: '', court: '', description: '' });
+      setFormData({ caseName: '', court: '', description: '' });
     } catch (error) {
       setError(error.message);
     }
   };
 
   if (loading) {
-    return <div>Loading...</div>;  // Show loading state while data is being fetched
+    return <div>Loading...</div>;
   }
 
   if (error) {
-    return <div>Error: {error}</div>;  // Show error message if there's an issue with the fetch
+    return <div>Error: {error}</div>;
   }
 
   return (
@@ -114,7 +112,7 @@ const Appeals = () => {
                 <InputGroup>
                   <InputGroup.Text><Search size={16} /></InputGroup.Text>
                   <Form.Control
-                    placeholder="Search by case or type..."
+                    placeholder="Search by case..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                   />
@@ -135,7 +133,6 @@ const Appeals = () => {
                   <tr>
                     <th>Date</th>
                     <th>Case Name</th>
-                    <th>Type</th>
                     <th>Status</th>
                     <th>Court</th>
                     <th>Result</th>
@@ -145,22 +142,21 @@ const Appeals = () => {
                 <tbody>
                   {filteredAppeals.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center text-muted py-4">No appeals found.</td>
+                      <td colSpan={6} className="text-center text-muted py-4">No appeals found.</td>
                     </tr>
                   ) : (
                     filteredAppeals.map((a, idx) => (
                       <tr key={idx}>
-                        <td>{a.date}</td>
+                        <td>{a.appealdate}</td>
                         <td>{a.casename}</td>
-                        <td>{a.type}</td>
                         <td>
                           <Badge bg={statusVariants[a.status] || 'secondary'} className="px-3 py-1 fs-6">
                             {a.status}
                           </Badge>
                         </td>
-                        <td>{a.courtname}</td>  {/* Displaying the court name */}
-                        <td>{a.result}</td>
-                        <td>{a.resultDate}</td>
+                        <td>{a.courtname}</td>
+                        <td>{a.decision || '—'}</td>
+<td>{new Date(a.decisiondate).toLocaleDateString() || '—'}</td>
                       </tr>
                     ))
                   )}
@@ -186,19 +182,6 @@ const Appeals = () => {
                 onChange={e => setFormData({ ...formData, caseName: e.target.value })}
                 required
               />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Type</Form.Label>
-              <Form.Select
-                value={formData.type}
-                onChange={e => setFormData({ ...formData, type: e.target.value })}
-                required
-              >
-                <option value="">Select type</option>
-                <option value="Civil">Civil</option>
-                <option value="Criminal">Criminal</option>
-                <option value="Probate">Probate</option>
-              </Form.Select>
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Court</Form.Label>

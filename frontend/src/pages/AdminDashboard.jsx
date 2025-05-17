@@ -6,21 +6,20 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [profileImage, setProfileImage] = useState('https://via.placeholder.com/40');
   const [adminData, setAdminData] = useState({ username: 'Muhammad Kaif' });
-  
-  // State to hold logs fetched from the API
+
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch logs from the API
+  // Fetch logs
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         const res = await fetch('/api/logs');
         const result = await res.json();
-        
+
         if (res.ok) {
-          setLogs(result);  // Assuming the response is an array of log objects
+          setLogs(result);
         } else {
           setError('Failed to load logs');
         }
@@ -32,6 +31,27 @@ const AdminDashboard = () => {
     };
 
     fetchLogs();
+  }, []);
+
+  // Fetch admin profile
+  useEffect(() => {
+    const fetchAdminProfile = async () => {
+      try {
+        const res = await fetch('/api/adminprofile');
+        const result = await res.json();
+
+        if (res.ok && result.success) {
+          const { firstName, lastName } = result.data;
+          setAdminData({ username: `${firstName} ${lastName}` });
+        } else {
+          console.error('Failed to load admin profile');
+        }
+      } catch (err) {
+        console.error('Error fetching admin profile:', err);
+      }
+    };
+
+    fetchAdminProfile();
   }, []);
 
   const filteredLogs = logs.filter(log =>
@@ -78,69 +98,80 @@ const AdminDashboard = () => {
           </button>
         </div>
       </div>
+
       {/* Main Content */}
       <Container fluid className="py-4">
-        <Card className="mb-4">
-          <Card.Body>
-            <h4 className="mb-3" style={{ color: '#22304a', fontWeight: 700 }}>System Logs</h4>
-            <Form.Group className="mb-3">
-              <Form.Control
-                type="text"
-                placeholder="Search logs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </Form.Group>
-            
-            {/* Show loading spinner if the logs are being fetched */}
-            {loading && (
-              <div className="d-flex justify-content-center">
-                <Spinner animation="border" />
-              </div>
-            )}
+        <div style={{
+          resize: 'both',
+          overflow: 'auto',
+          minHeight: '300px',
+          minWidth: '300px',
+          maxWidth: '100%',
+          maxHeight: '80vh',
+          border: '1px solid #dee2e6',
+          borderRadius: '0.375rem',
+          padding: '1rem',
+          backgroundColor: '#fff'
+        }}>
+          <Card className="mb-0 h-100 border-0">
+            <Card.Body>
+              <h4 className="mb-3" style={{ color: '#22304a', fontWeight: 700 }}>System Logs</h4>
+              <Form.Group className="mb-3">
+                <Form.Control
+                  type="text"
+                  placeholder="Search logs..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </Form.Group>
 
-            {/* Show error if fetching fails */}
-            {error && <Alert variant="danger">{error}</Alert>}
+              {loading && (
+                <div className="d-flex justify-content-center">
+                  <Spinner animation="border" />
+                </div>
+              )}
 
-            {/* Show the logs table once data is fetched */}
-            {!loading && !error && (
-              <div className="table-responsive">
-                <Table striped bordered hover>
-                  <thead>
-                    <tr>
-                      <th>Action Type</th>
-                      <th>Description</th>
-                      <th>Status</th>
-                      <th>Timestamp</th>
-                      <th>Entity Type</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLogs.length > 0 ? (
-                      filteredLogs.map((log) => (
-                        <tr key={log.logid}>
-                          <td>{log.actiontype}</td>
-                          <td>{log.description}</td>
-                          <td>
-                            <span className={`badge ${log.status === 'Success' ? 'bg-success' : 'bg-danger'}`}>
-                              {log.status}
-                            </span>
-                          </td>
-                          <td>{new Date(log.actiontimestamp).toLocaleString()}</td>
-                          <td>{log.entitytype}</td>
-                        </tr>
-                      ))
-                    ) : (
+              {error && <Alert variant="danger">{error}</Alert>}
+
+              {!loading && !error && (
+                <div className="table-responsive">
+                  <Table striped bordered hover>
+                    <thead>
                       <tr>
-                        <td colSpan="5" className="text-center">No logs found</td>
+                        <th>Action Type</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Timestamp</th>
+                        <th>Entity Type</th>
                       </tr>
-                    )}
-                  </tbody>
-                </Table>
-              </div>
-            )}
-          </Card.Body>
-        </Card>
+                    </thead>
+                    <tbody>
+                      {filteredLogs.length > 0 ? (
+                        filteredLogs.map((log) => (
+                          <tr key={log.logid}>
+                            <td>{log.actiontype}</td>
+                            <td>{log.description}</td>
+                            <td>
+                              <span className={`badge ${log.status === 'Success' ? 'bg-success' : 'bg-danger'}`}>
+                                {log.status}
+                              </span>
+                            </td>
+                            <td>{new Date(log.actiontimestamp).toLocaleString()}</td>
+                            <td>{log.entitytype}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" className="text-center">No logs found</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        </div>
       </Container>
     </div>
   );

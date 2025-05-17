@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form } from 'react-bootstrap';
+import { Card, Table, Button, Modal, Form, Alert } from 'react-bootstrap';
 
 const Bail = () => {
   const [bailData, setBailData] = useState([]);
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({
-    bailstatus: '',
-    bailamount: '',
     baildate: '',
-    remarks: '',
-    bailcondition: '',
-    caseName: ''
+    caseName: '',
+    suretyid: ''
   });
+  const [message, setMessage] = useState('');
   const [fallbackWarning, setFallbackWarning] = useState("");
 
   useEffect(() => {
@@ -70,10 +68,31 @@ const Bail = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    setShow(false);
-    // TODO: Implement submit to backend
+    try {
+      const res = await fetch('/api/bails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          casename: form.caseName,
+          bail_date: form.baildate,
+          suretyid: form.suretyid
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to submit bail');
+
+      setMessage('Bail request submitted successfully.');
+      setForm({ baildate: '', caseName: '', suretyid: '' });
+      setShow(false);
+    } catch (err) {
+      console.error(err);
+      setMessage('Error submitting bail request.');
+    }
   };
 
   return (
@@ -84,9 +103,8 @@ const Bail = () => {
           <Button variant="primary" onClick={() => setShow(true)}>Request Bail</Button>
         </Card.Header>
         <Card.Body>
-          {fallbackWarning && (
-            <div className="alert alert-warning text-center">{fallbackWarning}</div>
-          )}
+          {message && <Alert variant="info" className="text-center">{message}</Alert>}
+          {fallbackWarning && <Alert variant="warning" className="text-center">{fallbackWarning}</Alert>}
           <Table bordered hover>
             <thead className="table-light">
               <tr>
@@ -126,32 +144,38 @@ const Bail = () => {
           <Modal.Title>Request Bail</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
-          <Modal.Body>
-            <Form.Group className="mb-3">
-              <Form.Label>Case Name</Form.Label>
-              <Form.Control name="caseName" value={form.caseName} onChange={handleChange} required />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Status</Form.Label>
-              <Form.Control name="bailstatus" value={form.bailstatus} onChange={handleChange} required />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Amount</Form.Label>
-              <Form.Control type="number" name="bailamount" value={form.bailamount} onChange={handleChange} required />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Date</Form.Label>
-              <Form.Control type="date" name="baildate" value={form.baildate} onChange={handleChange} required />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Remarks</Form.Label>
-              <Form.Control name="remarks" value={form.remarks} disabled readOnly />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Condition</Form.Label>
-              <Form.Control name="bailcondition" value={form.bailcondition} disabled readOnly />
-            </Form.Group>
-          </Modal.Body>
+          <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+  <Form.Group className="mb-3">
+    <Form.Label>Case Name</Form.Label>
+    <Form.Control
+      name="caseName"
+      value={form.caseName}
+      onChange={handleChange}
+      required
+    />
+  </Form.Group>
+  <Form.Group className="mb-3">
+    <Form.Label>Bail Date</Form.Label>
+    <Form.Control
+      type="date"
+      name="baildate"
+      value={form.baildate}
+      onChange={handleChange}
+      required
+    />
+  </Form.Group>
+  <Form.Group className="mb-3">
+    <Form.Label>Surety ID</Form.Label>
+    <Form.Control
+      type="number"
+      name="suretyid"
+      value={form.suretyid}
+      onChange={handleChange}
+      required
+    />
+  </Form.Group>
+</Modal.Body>
+
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShow(false)}>Cancel</Button>
             <Button variant="primary" type="submit">Submit</Button>

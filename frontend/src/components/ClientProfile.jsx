@@ -16,7 +16,16 @@ const initialProfile = {
 };
 
 function ClientProfile() {
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useState({
+  firstname: '',
+  lastname: '',
+  dob: '',
+  email: '',
+  phoneno: '',
+  cnic: '',
+  address: '',
+  password: '',
+});
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState(localStorage.getItem(PROFILE_IMAGE_KEY) || 'https://via.placeholder.com/120');
   const [loading, setLoading] = useState(false);

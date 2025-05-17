@@ -13,6 +13,7 @@ const PROFILE_IMAGE_KEY = 'clientProfileImage';
 function ClientDashboard() {
   const [activeSection, setActiveSection] = useState('cases');
   const [profileImage, setProfileImage] = useState(localStorage.getItem(PROFILE_IMAGE_KEY) || 'https://via.placeholder.com/40');
+  const [clientProfile, setClientProfile] = useState(null);
   const navigate = useNavigate();
 
   const [cases, setCases] = useState([]);
@@ -20,6 +21,34 @@ function ClientDashboard() {
   const [caseError, setCaseError] = useState(null);
 
   useEffect(() => {
+    // Fetch client profile once on mount
+    const fetchClientProfile = async () => {
+      try {
+        const response = await fetch('/api/clientprofile', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+          },
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error('Failed to fetch client profile');
+        const result = await response.json();
+        if (result.success && result.data) {
+          setClientProfile(result.data);
+        } else {
+          console.error('Failed to load client profile:', result.message);
+        }
+      } catch (err) {
+        console.error('Error fetching client profile:', err);
+      }
+    };
+
+    fetchClientProfile();
+  }, []);
+
+  useEffect(() => {
+    // Fetch cases on mount
     const fetchCases = async () => {
       try {
         const response = await fetch('/api/cases', {
@@ -37,15 +66,14 @@ function ClientDashboard() {
 
         const result = await response.json();
         if (result.cases) {
-          // Map the cases and include history
           const mappedCases = result.cases.map(c => ({
-            id: c.caseid,                    // map caseid to id
+            id: c.caseid,
             title: c.title,
             description: c.description,
-            caseType: c.casetype,            // map casetype to caseType
+            caseType: c.casetype,
             filingDate: c.filingdate,
             status: c.status,
-            history: c.history || []         // Ensure history is included
+            history: c.history || []
           }));
 
           setCases(mappedCases);
@@ -90,7 +118,9 @@ function ClientDashboard() {
                 style={{ borderColor: '#fff' }}
               />
               <div>
-                <h6 className="mb-0" style={{ color: '#fff', fontWeight: 600 }}>Muhammad Muqaddam</h6>
+                <h6 className="mb-0" style={{ color: '#fff', fontWeight: 600 }}>
+                  {clientProfile ? `${clientProfile.firstName} ${clientProfile.lastName}` : 'Client'}
+                </h6>
                 <small style={{ color: 'rgba(255,255,255,0.85)' }}>Client</small>
               </div>
             </div>
@@ -179,7 +209,7 @@ function ClientDashboard() {
             {activeSection === 'cases' && <ClientCases cases={cases} loading={loadingCases} error={caseError} />}
             {activeSection === 'hearings' && <ClientHearingSchedule />}
             {activeSection === 'documents' && <ClientDocuments />}
-            {activeSection === 'profile' && <Profile />}
+            {activeSection === 'profile' && <Profile profile={clientProfile} />}
           </div>
         </div>
       </div>

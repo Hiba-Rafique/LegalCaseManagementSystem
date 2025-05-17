@@ -11,54 +11,83 @@ const Surety = () => {
   const [fallbackWarning, setFallbackWarning] = useState("");
 
   useEffect(() => {
-    const fetchSuretyForLawyer = async () => {
-      try {
-        const response = await fetch('/api/surety/from-lawyer', {
-          credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch surety');
-
-        const data = await response.json();
-        setSuretyData([{
-          id: data.suretyid,
-          firstname: data.firstname,
-          lastname: data.lastname,
-          cnic: data.cnic,
-          phone: data.phone,
-          email: data.email,
-          address: data.address,
-          pasthistory: data.pasthistory,
-          caseName: `Case #${data.caseid}`
-        }]);
-      } catch (error) {
-        console.error(error);
-        setFallbackWarning("Failed to load surety. Showing mock data.");
-        setSuretyData([
-          {
-            id: 1,
-            firstname: 'Ali',
-            lastname: 'Khan',
-            cnic: '12345-6789012-3',
-            phone: '03001234567',
-            email: 'ali.khan@email.com',
-            address: '123 Main St',
-            pasthistory: 'No previous surety',
-            caseName: 'Mock Case 1'
-          }
-        ]);
-      }
-    };
-
     fetchSuretyForLawyer();
   }, []);
 
+  const fetchSuretyForLawyer = async () => {
+    try {
+      const response = await fetch('/api/surety/from-lawyer', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch surety');
+
+      const data = await response.json();
+      setSuretyData([{
+        id: data.suretyid,
+        firstname: data.firstname,
+        lastname: data.lastname,
+        cnic: data.cnic,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        pasthistory: data.pasthistory,
+        caseName: `Case #${data.caseid}`
+      }]);
+    } catch (error) {
+      console.error(error);
+      setFallbackWarning("Failed to load surety. Showing mock data.");
+      setSuretyData([
+        {
+          id: 1,
+          firstname: 'Ali',
+          lastname: 'Khan',
+          cnic: '12345-6789012-3',
+          phone: '03001234567',
+          email: 'ali.khan@email.com',
+          address: '123 Main St',
+          pasthistory: 'No previous surety',
+          caseName: 'Mock Case 1'
+        }
+      ]);
+    }
+  };
+
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
     setShow(false);
-    // TODO: Add POST logic here
+
+    try {
+      const response = await fetch('/api/surety', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          firstname: form.firstname,
+          lastname: form.lastname,
+          cnic: form.cnic,
+          phone: form.phone,
+          email: form.email,
+          address: form.address,
+          past_history: form.pasthistory,
+          casename: form.caseName
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Failed to add surety');
+      }
+
+      const result = await response.json();
+      alert(result.message || 'Surety added successfully');
+      await fetchSuretyForLawyer();
+    } catch (error) {
+      console.error('Error adding surety:', error.message);
+      alert(`Failed to add surety: ${error.message}`);
+    }
   };
 
   return (

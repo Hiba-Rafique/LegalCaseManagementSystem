@@ -24,16 +24,8 @@ import {
   FileText as FileTextIcon
 } from 'lucide-react';
 
-const initialDocuments = [
-  { id: 'doc1', name: 'Zaina Life Forms', type: 'folder', uploadDate: new Date(Date.now() - 5 * 86400000) },
-  { id: 'doc2', name: 'Case Brief - oop vs database.pdf', type: 'file', uploadDate: new Date(Date.now() - 2 * 86400000), size: 1024 * 500 },
-  { id: 'doc3', name: 'Extension Requests', type: 'folder', uploadDate: new Date(Date.now() - 10 * 86400000) },
-  { id: 'doc4', name: 'Zaina Death Report.docx', type: 'file', uploadDate: new Date(Date.now() - 86400000), size: 1024 * 1200 },
-  { id: 'doc5', name: 'Murder Exhibits', type: 'folder', uploadDate: new Date(Date.now() - 86400000) },
-  { id: 'doc6', name: 'Motion_to_Dismiss_Response.pdf', type: 'file', uploadDate: new Date(Date.now() - 3 * 3600000), size: 1024 * 250 },
-  { id: 'doc7', name: 'Evidence_Photo_01.jpg', type: 'file', uploadDate: new Date(Date.now() - 4 * 86400000), size: 1024 * 800 },
-  { id: 'doc8', name: 'Client_Correspondence.eml', type: 'file', uploadDate: new Date(Date.now() - 6 * 86400000), size: 1024 * 50 },
-];
+const initialDocuments = [];
+ 
 
 const DocumentManagement = () => {
   const [documents, setDocuments] = useState([]);
@@ -53,35 +45,93 @@ const DocumentManagement = () => {
     setCurrentDates(dates);
   }, []);
 
-  const handleFileUpload = useCallback(async (event) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+useEffect(() => {
+  async function fetchDocuments() {
+    try {
+      const res = await fetch('/api/documents');
+      if (!res.ok) throw new Error('Failed to fetch documents');
+      const data = await res.json();
 
-    setIsUploading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
+      const docsWithDateObjects = data.documents.map((doc, index) => ({
+        id: `doc-${index}`, // Generate a temporary ID
+        name: doc.documenttitle || 'Untitled',
+        type: doc.documenttype?.toLowerCase().includes('folder') ? 'folder' : 'file', // Adjust this logic based on types
+        uploadDate: new Date(doc.uploaddate),
+        size: doc.size || null // Optional: handle size if backend sends it
+      }));
 
-    const newDocs = Array.from(files).map((file, index) => ({
-      id: `new-${Date.now()}-${index}`,
-      name: file.name,
-      type: 'file',
-      uploadDate: new Date(),
-      size: file.size,
-      fileObj: file
-    }));
+      const sortedDocs = docsWithDateObjects.sort(
+        (a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()
+      );
 
-    setDocuments(prevDocs => {
-      const updatedDocs = [...newDocs, ...prevDocs].sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime());
-      const newDates = { ...currentDates };
-      newDocs.forEach(doc => {
-        newDates[doc.id] = doc.uploadDate.toLocaleDateString();
+      setDocuments(sortedDocs);
+
+      const dates = {};
+      sortedDocs.forEach(doc => {
+        dates[doc.id] = doc.uploadDate.toLocaleDateString();
       });
-      setCurrentDates(newDates);
-      return updatedDocs;
-    });
+      setCurrentDates(dates);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
-    setIsUploading(false);
-    event.target.value = '';
-  }, [currentDates]);
+  fetchDocuments();
+}, []);
+
+
+const handleFileUpload = useCallback(async (event) => {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+
+  setIsUploading(true);
+
+  const newDocs = Array.from(files).map((file, index) => ({
+    id: `new-${Date.now()}-${index}`,
+    name: file.name,
+    type: 'file',
+    uploadDate: new Date(),
+    size: file.size,
+    fileObj: file
+  }));
+
+  for (let doc of newDocs) {
+    const payload = {
+      documenttitle: doc.name,
+      documenttype: 'file',
+      lawyerid: 1, // Replace with dynamic lawyer ID
+      uploaddate: doc.uploadDate.toISOString(),
+      size: doc.size
+    };
+
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        console.error('Failed to upload document to server');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+    }
+  }
+
+  setDocuments(prevDocs => {
+    const updatedDocs = [...newDocs, ...prevDocs].sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime());
+    const newDates = { ...currentDates };
+    newDocs.forEach(doc => {
+      newDates[doc.id] = doc.uploadDate.toLocaleDateString();
+    });
+    setCurrentDates(newDates);
+    return updatedDocs;
+  });
+
+  setIsUploading(false);
+  event.target.value = '';
+}, [currentDates]);
 
   const handleDownload = (doc) => {
     if (doc.type === 'folder') {
@@ -109,10 +159,13 @@ const DocumentManagement = () => {
   };
 
   const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterType === 'all' || doc.type === filterType;
-    return matchesSearch && matchesFilter;
-  });
+  const name = doc.name || ''; // Ensure we always have a string
+  const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
+  const matchesFilter = filterType === 'all' || doc.type === filterType;
+  return matchesSearch && matchesFilter;
+});
+
+
 
   // Helper to check if a file is an image
   const isImage = (name) => /\.(jpg|jpeg|png|gif)$/i.test(name);

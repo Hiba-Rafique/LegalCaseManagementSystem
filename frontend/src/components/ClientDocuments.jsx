@@ -1,78 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { Card, Row, Col, ListGroup, Button, Badge, Modal, Form, Spinner } from 'react-bootstrap';
-import { Folder, FileText, Eye, UploadCloud, FileImage } from 'lucide-react';
-
-const initialDocuments = [
-  {
-    id: 1,
-    title: 'Charge Sheet',
-    category: 'Legal Documents',
-    uploadDate: '2024-03-15',
-    size: '2.5 MB',
-    type: 'PDF',
-    path: '/docs/charge_sheet.pdf',
-    fileType: 'pdf',
-  },
-  {
-    id: 2,
-    title: 'Forensic Report',
-    category: 'Evidence',
-    evidenceType: 'Document',
-    description: 'Forensic analysis of crime scene',
-    date: '2024-03-16',
-    caseName: 'State v. Smith',
-    size: '1.8 MB',
-    type: 'PDF',
-    path: '/docs/forensic_report.pdf',
-    fileType: 'pdf',
-  },
-  {
-    id: 3,
-    title: 'Photo Evidence',
-    category: 'Evidence',
-    evidenceType: 'Photo',
-    description: 'Photo of the crime scene',
-    date: '2024-03-17',
-    caseName: 'State v. Smith',
-    size: '1.2 MB',
-    type: 'JPG',
-    path: '/docs/evidence_photo1.jpg',
-    fileType: 'image',
-  },
-  {
-    id: 4,
-    title: 'Witness Statement',
-    category: 'Statements',
-    firstName: 'Ali',
-    lastName: 'Khan',
-    cnic: '12345-6789012-3',
-    phone: '0300-1234567',
-    email: 'ali.khan@email.com',
-    pastHistory: 'No prior criminal record',
-    statement: 'I saw the accused at the scene.',
-    caseName: 'State v. Smith',
-    date: '2024-03-18',
-    size: '0.8 MB',
-    type: 'PDF',
-    path: '/docs/witness_statement.pdf',
-    fileType: 'pdf',
-  },
-  {
-    id: 5,
-    title: 'Court Order',
-    category: 'Legal Documents',
-    uploadDate: '2024-03-18',
-    size: '0.8 MB',
-    type: 'PDF',
-    path: '/docs/court_order.pdf',
-    fileType: 'pdf',
-  }
-];
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Row, Col, ListGroup, Button, Badge, Modal, Form, Spinner, Alert } from 'react-bootstrap';
+import { Eye, UploadCloud } from 'lucide-react';
 
 const categories = ['Legal Documents', 'Evidence', 'Statements'];
 
 function ClientDocuments() {
-  const [documents, setDocuments] = useState(initialDocuments);
+  const [documents, setDocuments] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Legal Documents');
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTitle, setAddTitle] = useState('');
@@ -80,28 +13,92 @@ function ClientDocuments() {
   const [addLoading, setAddLoading] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewDoc, setViewDoc] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const fileInputRef = useRef();
 
-  const filteredDocuments = documents.filter(doc => doc.category === selectedCategory);
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/clientdocuments', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+          },
+          credentials: 'include',
+        });
+
+        if (!res.ok) throw new Error('Failed to fetch documents');
+
+        const result = await res.json();
+        const docs = result.documents || result.data || [];
+
+        // Normalize backend fields to frontend keys
+        const normalizedDocs = docs.map(doc => ({
+          id: doc.documentid || doc.id,
+          title: doc.documenttitle || doc.title,
+          documenttype: doc.documenttype || doc.category || 'Legal Documents',
+          uploadDate: doc.uploaddate || doc.uploadDate || '',
+          size: doc.size || '',
+          type: doc.documenttype || doc.type || '',
+          path: doc.filepath || doc.path || '',
+          fileType: doc.filetype || doc.fileType || '',
+
+          // Extra fields for view modal (optional)
+          evidenceType: doc.evidencetype,
+          description: doc.description,
+          date: doc.date,
+          caseName: doc.casename,
+          firstName: doc.firstname,
+          lastName: doc.lastname,
+          cnic: doc.cnic,
+          phone: doc.phone,
+          email: doc.email,
+          pastHistory: doc.pasthistory,
+          statement: doc.statement,
+        }));
+
+        setDocuments(normalizedDocs);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, []);
+
+  // Filter using documenttype field
+  const filteredDocuments = documents.filter(doc => doc.documenttype === selectedCategory);
 
   const handleAddDocument = async (e) => {
     e.preventDefault();
     if (!addTitle || !addFile) return;
     setAddLoading(true);
-    // Simulate upload
+    // Simulated upload - replace with real upload logic
     setTimeout(() => {
-      const fileType = addFile.type.startsWith('image') ? 'image' : (addFile.type === 'application/pdf' ? 'pdf' : 'file');
+      const fileType = addFile.type.startsWith('image')
+        ? 'image'
+        : addFile.type === 'application/pdf'
+        ? 'pdf'
+        : 'file';
+
       const newDoc = {
         id: Date.now(),
         title: addTitle,
-        category: 'Legal Documents',
+        documenttype: 'Legal Documents',
         uploadDate: new Date().toISOString().split('T')[0],
         size: `${(addFile.size / 1024 / 1024).toFixed(1)} MB`,
         type: addFile.name.split('.').pop().toUpperCase(),
         path: URL.createObjectURL(addFile),
         fileType,
       };
-      setDocuments([newDoc, ...documents]);
+
+      setDocuments(prevDocs => [newDoc, ...prevDocs]);
       setAddTitle('');
       setAddFile(null);
       setAddLoading(false);
@@ -115,7 +112,7 @@ function ClientDocuments() {
     setShowViewModal(true);
   };
 
-    return (
+  return (
     <Row className="h-100 g-4 justify-content-center align-items-start">
       <Col md={3} className="d-flex flex-column">
         <Card className="shadow-sm rounded-4 w-100 flex-grow-1 mb-0">
@@ -146,55 +143,72 @@ function ClientDocuments() {
           </Card.Body>
         </Card>
       </Col>
+
       <Col md={9} className="d-flex flex-column">
         <Card className="shadow-sm rounded-4 w-100 flex-grow-1 mb-0">
           <Card.Body className="p-4">
             <h4 className="mb-4">Documents</h4>
-            <div className="table-responsive" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
-              <table className="table table-hover align-middle mb-0">
-                <thead className="table-light sticky-top">
-                  <tr>
-                    <th>Title</th>
-                    <th>Category</th>
-                    <th>Upload Date</th>
-                    <th>Size</th>
-                    <th>Type</th>
-                    <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                  {filteredDocuments.length === 0 ? (
+
+            {loading && (
+              <div className="text-center my-5">
+                <Spinner animation="border" />
+              </div>
+            )}
+
+            {error && (
+              <Alert variant="danger" className="my-3">
+                {error}
+              </Alert>
+            )}
+
+            {!loading && !error && (
+              <div className="table-responsive" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="table-light sticky-top">
                     <tr>
-                      <td colSpan={6} className="text-center text-muted py-4">
-                        No documents found in this category.
-                      </td>
+                      <th>Title</th>
+                      <th>Type</th>
+                      <th>Upload Date</th>
+                      <th>Size</th>
+                      <th>Document Type</th>
+                      <th>Action</th>
                     </tr>
-                  ) : (
-                    filteredDocuments.map(doc => (
-                      <tr key={doc.id}>
-                        <td>{doc.title}</td>
-                        <td><Badge bg="secondary">{doc.category}</Badge></td>
-                        <td>{doc.uploadDate}</td>
-                        <td>{doc.size}</td>
-                        <td><Badge bg="info">{doc.type}</Badge></td>
-                        <td>
-                          <Button
-                            variant="outline-primary"
-                            size="sm"
-                            onClick={() => handleView(doc)}
-                                    >
-                            <Eye size={16} className="me-1" /> View
-                          </Button>
-                                </td>
-                            </tr>
-                    ))
-                  )}
-                    </tbody>
+                  </thead>
+                  <tbody>
+                    {filteredDocuments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center text-muted py-4">
+                          No documents found in this category.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDocuments.map(doc => (
+                        <tr key={doc.id}>
+                          <td>{doc.title}</td>
+                          <td><Badge bg="info">{doc.type}</Badge></td>
+                          <td>{doc.uploadDate}</td>
+                          <td>{doc.size}</td>
+                          <td><Badge bg="secondary">{doc.documenttype}</Badge></td>
+                          <td>
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => handleView(doc)}
+                            >
+                              <Eye size={16} className="me-1" /> View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
                 </table>
-            </div>
+              </div>
+            )}
           </Card.Body>
         </Card>
       </Col>
+
       {/* Add Legal Document Modal */}
       <Modal show={showAddModal} onHide={() => setShowAddModal(false)} centered>
         <Modal.Header closeButton>
@@ -230,6 +244,7 @@ function ClientDocuments() {
           </Modal.Footer>
         </Form>
       </Modal>
+
       {/* View Document Modal */}
       <Modal show={showViewModal} onHide={() => setShowViewModal(false)} centered size="lg">
         <Modal.Header closeButton>
@@ -238,14 +253,14 @@ function ClientDocuments() {
         <Modal.Body>
           {viewDoc && (
             <div>
-              {viewDoc.category === 'Evidence' ? (
+              {viewDoc.documenttype === 'Evidence' ? (
                 <>
                   <div className="mb-3"><strong>Evidence Type:</strong> {viewDoc.evidenceType}</div>
                   <div className="mb-3"><strong>Description:</strong> {viewDoc.description}</div>
                   <div className="mb-3"><strong>Date:</strong> {viewDoc.date}</div>
                   <div className="mb-3"><strong>Case Name:</strong> {viewDoc.caseName}</div>
                 </>
-              ) : viewDoc.category === 'Statements' ? (
+              ) : viewDoc.documenttype === 'Statements' ? (
                 <>
                   <div className="mb-3"><strong>First Name:</strong> {viewDoc.firstName}</div>
                   <div className="mb-3"><strong>Last Name:</strong> {viewDoc.lastName}</div>
@@ -260,12 +275,12 @@ function ClientDocuments() {
               ) : (
                 <>
                   <div className="mb-3"><strong>Title:</strong> {viewDoc.title}</div>
-                  <div className="mb-3"><strong>Category:</strong> {viewDoc.category}</div>
                   <div className="mb-3"><strong>Upload Date:</strong> {viewDoc.uploadDate}</div>
                   <div className="mb-3"><strong>Type:</strong> {viewDoc.type}</div>
                   <div className="mb-3"><strong>Size:</strong> {viewDoc.size}</div>
                 </>
               )}
+
               {viewDoc.fileType === 'image' ? (
                 <div className="text-center">
                   <img src={viewDoc.path} alt={viewDoc.title} style={{ maxWidth: '100%', maxHeight: 400, borderRadius: 8 }} />
@@ -282,7 +297,7 @@ function ClientDocuments() {
                   <a href={viewDoc.path} target="_blank" rel="noopener noreferrer" className="btn btn-outline-primary">Download File</a>
                 </div>
               )}
-        </div>
+            </div>
           )}
         </Modal.Body>
         <Modal.Footer>
@@ -290,7 +305,7 @@ function ClientDocuments() {
         </Modal.Footer>
       </Modal>
     </Row>
-    );
+  );
 }
 
 export default ClientDocuments;

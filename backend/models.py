@@ -26,6 +26,7 @@ class Cases(Base):
     updatedat: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
 
     court: Mapped[List['Court']] = relationship('Court', secondary='courtaccess', back_populates='cases')
+    prosecutor: Mapped[List['Prosecutor']] = relationship('Prosecutor', secondary='prosecutorassign', back_populates='cases')
     lawyer: Mapped[List['Lawyer']] = relationship('Lawyer', secondary='caselawyeraccess', back_populates='cases')
     judge: Mapped[List['Judge']] = relationship('Judge', secondary='judgeaccess', back_populates='cases')
     caseparticipant: Mapped[List['Caseparticipant']] = relationship('Caseparticipant', secondary='caseparticipantaccess', back_populates='cases')
@@ -35,8 +36,8 @@ class Cases(Base):
     documentcase: Mapped[List['Documentcase']] = relationship('Documentcase', back_populates='cases')
     evidence: Mapped[List['Evidence']] = relationship('Evidence', back_populates='cases')
     finaldecision: Mapped[List['Finaldecision']] = relationship('Finaldecision', back_populates='cases')
-    hearings: Mapped[List['Hearings']] = relationship('Hearings', back_populates='cases')
     remands: Mapped[List['Remands']] = relationship('Remands', back_populates='cases')
+    hearings: Mapped[List['Hearings']] = relationship('Hearings', back_populates='cases')
     payments: Mapped[List['Payments']] = relationship('Payments', back_populates='cases')
 
 
@@ -52,7 +53,6 @@ class Court(Base):
     location: Mapped[Optional[str]] = mapped_column(String(255))
 
     cases: Mapped[List['Cases']] = relationship('Cases', secondary='courtaccess', back_populates='court')
-    prosecutor: Mapped[List['Prosecutor']] = relationship('Prosecutor', secondary='prosecutorassign', back_populates='court')
     judge: Mapped[List['Judge']] = relationship('Judge', secondary='judgeworksin', back_populates='court')
     courtregistrar: Mapped[List['Courtregistrar']] = relationship('Courtregistrar', back_populates='court')
     courtroom: Mapped[List['Courtroom']] = relationship('Courtroom', back_populates='court')
@@ -143,7 +143,7 @@ class Prosecutor(Base):
     experience: Mapped[Optional[int]] = mapped_column(Integer)
     status: Mapped[Optional[str]] = mapped_column(String(255))
 
-    court: Mapped[List['Court']] = relationship('Court', secondary='prosecutorassign', back_populates='prosecutor')
+    cases: Mapped[List['Cases']] = relationship('Cases', secondary='prosecutorassign', back_populates='prosecutor')
 
 
 class Surety(Base):
@@ -187,7 +187,8 @@ class Users(Base):
     judge: Mapped[List['Judge']] = relationship('Judge', back_populates='users')
     lawyer: Mapped[List['Lawyer']] = relationship('Lawyer', back_populates='users')
     caseparticipant: Mapped[List['Caseparticipant']] = relationship('Caseparticipant', back_populates='users')
-
+    
+      
     @property
     def is_active(self):
         # Return True for all users, or add your custom logic here
@@ -200,6 +201,22 @@ class Users(Base):
     
     def get_id(self):
         return str(self.userid)
+    
+    @classmethod
+    def from_row(cls, row):
+        return cls(
+        userid=row[0],
+        firstname=row[1],
+        lastname=row[2],
+        email=row[3],
+        phoneno=row[4],
+        cnic=row[5],
+        dob=row[6],
+        password=row[7],
+        role=row[8]
+    )
+
+
 
 class Witnesscase(Base):
     __tablename__ = 'witnesscase'
@@ -255,7 +272,7 @@ class Appeals(Base):
     caseid: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     appealid: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     appealdate: Mapped[datetime.date] = mapped_column(Date)
-    appealstatus: Mapped[Optional[str]] = mapped_column(String(100))
+    appealstatus: Mapped[Optional[str]] = mapped_column(String(100), server_default=text("'forwarded for review'::character varying"))
     decisiondate: Mapped[Optional[datetime.date]] = mapped_column(Date)
     decision: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -340,7 +357,7 @@ class Courtroom(Base):
     courtroomid: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     courtroomno: Mapped[int] = mapped_column(Integer)
     capacity: Mapped[Optional[int]] = mapped_column(Integer)
-    availability: Mapped[Optional[bool]] = mapped_column(Boolean)
+    availability: Mapped[Optional[str]] = mapped_column(String)
 
     court: Mapped['Court'] = relationship('Court', back_populates='courtroom')
 
@@ -400,25 +417,6 @@ class Finaldecision(Base):
     cases: Mapped['Cases'] = relationship('Cases', back_populates='finaldecision')
 
 
-class Hearings(Base):
-    __tablename__ = 'hearings'
-    __table_args__ = (
-        ForeignKeyConstraint(['caseid'], ['cases.caseid'], ondelete='CASCADE', onupdate='CASCADE', name='fk_hearings_case'),
-        PrimaryKeyConstraint('caseid', 'hearingid', name='hearingspk')
-    )
-
-    caseid: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    hearingid: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    hearingdate: Mapped[datetime.date] = mapped_column(Date)
-    hearingtime: Mapped[Optional[datetime.time]] = mapped_column(Time)
-    venue: Mapped[Optional[str]] = mapped_column(String(255))
-    remarks: Mapped[Optional[str]] = mapped_column(Text)
-    createdat: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
-    updatedat: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
-
-    cases: Mapped['Cases'] = relationship('Cases', back_populates='hearings')
-
-
 class Judge(Base):
     __tablename__ = 'judge'
     __table_args__ = (
@@ -437,6 +435,7 @@ class Judge(Base):
     cases: Mapped[List['Cases']] = relationship('Cases', secondary='judgeaccess', back_populates='judge')
     court: Mapped[List['Court']] = relationship('Court', secondary='judgeworksin', back_populates='judge')
     users: Mapped[Optional['Users']] = relationship('Users', back_populates='judge')
+    hearings: Mapped[List['Hearings']] = relationship('Hearings', back_populates='judge')
 
 
 class Lawyer(Base):
@@ -463,10 +462,10 @@ class Lawyer(Base):
 t_prosecutorassign = Table(
     'prosecutorassign', Base.metadata,
     Column('prosecutorid', BigInteger, primary_key=True, nullable=False),
-    Column('courtid', BigInteger, primary_key=True, nullable=False),
-    ForeignKeyConstraint(['courtid'], ['court.courtid'], ondelete='CASCADE', onupdate='CASCADE', name='assigncourtfk'),
+    Column('caseid', BigInteger, primary_key=True, nullable=False),
+    ForeignKeyConstraint(['caseid'], ['cases.caseid'], name='prosecutorassign_caseid_fkey'),
     ForeignKeyConstraint(['prosecutorid'], ['prosecutor.prosecutorid'], ondelete='CASCADE', onupdate='CASCADE', name='prosecutorassignfk'),
-    PrimaryKeyConstraint('prosecutorid', 'courtid', name='prosecutorassignpk')
+    PrimaryKeyConstraint('prosecutorid', 'caseid', name='prosecutorassignpk')
 )
 
 
@@ -484,6 +483,7 @@ class Remands(Base):
     remandtype: Mapped[Optional[str]] = mapped_column(String(100))
     remanddate: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
     remandreason: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[Optional[str]] = mapped_column(String)
 
     cases: Mapped['Cases'] = relationship('Cases', back_populates='remands')
 
@@ -514,6 +514,29 @@ class Caseparticipant(Base):
     cases: Mapped[List['Cases']] = relationship('Cases', secondary='caseparticipantaccess', back_populates='caseparticipant')
     lawyer: Mapped[Optional['Lawyer']] = relationship('Lawyer', back_populates='caseparticipant')
     users: Mapped[Optional['Users']] = relationship('Users', back_populates='caseparticipant')
+
+
+class Hearings(Base):
+    __tablename__ = 'hearings'
+    __table_args__ = (
+        ForeignKeyConstraint(['caseid'], ['cases.caseid'], ondelete='CASCADE', onupdate='CASCADE', name='fk_hearings_case'),
+        ForeignKeyConstraint(['judgeid'], ['judge.judgeid'], ondelete='CASCADE', onupdate='CASCADE', name='hearings_judgeid_fkey'),
+        PrimaryKeyConstraint('caseid', 'hearingid', name='hearingspk'),
+        UniqueConstraint('hearingid', name='hearings_hearingid_key')
+    )
+
+    caseid: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    hearingid: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    hearingdate: Mapped[datetime.date] = mapped_column(Date)
+    judgeid: Mapped[int] = mapped_column(BigInteger, comment='foreign key to judge (judge who creates hearing)')
+    hearingtime: Mapped[Optional[datetime.time]] = mapped_column(Time)
+    venue: Mapped[Optional[str]] = mapped_column(String(255))
+    remarks: Mapped[Optional[str]] = mapped_column(Text)
+    createdat: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
+    updatedat: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
+
+    cases: Mapped['Cases'] = relationship('Cases', back_populates='hearings')
+    judge: Mapped['Judge'] = relationship('Judge', back_populates='hearings')
 
 
 t_judgeaccess = Table(
@@ -574,6 +597,7 @@ class Payments(Base):
     balance: Mapped[Optional[decimal.Decimal]] = mapped_column(Numeric(10, 2))
     purpose: Mapped[Optional[str]] = mapped_column(String(255))
     paymentdate: Mapped[Optional[datetime.date]] = mapped_column(Date)
+    status: Mapped[Optional[str]] = mapped_column(Enum('Paid', 'Pending', name='payment_status'), server_default=text("'Pending'::payment_status"))
 
     cases: Mapped[Optional['Cases']] = relationship('Cases', back_populates='payments')
     court: Mapped[Optional['Court']] = relationship('Court', back_populates='payments')

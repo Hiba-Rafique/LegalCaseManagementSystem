@@ -12,11 +12,11 @@ const Evidence = () => {
   const [evidence, setEvidence] = useState([]);
   const [error, setError] = useState('');
 
-  // 🔹 Fetch evidence from Flask API when component mounts
+  // Fetch evidence on component mount
   useEffect(() => {
     fetch('/api/lawyer/evidence', {
       method: 'GET',
-      credentials: 'include', // Important for sessions/cookies
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json'
       }
@@ -30,11 +30,11 @@ const Evidence = () => {
       })
       .then((data) => {
         const formatted = data.evidence.map((e) => ({
-          id: e.evidence_id,
+          id: e.evidence_id || e.id,
           evidenceType: e.evidencetype,
           description: e.description,
           submissionDate: e.submitteddate,
-          caseName: `Case #${e.case_id}`
+          caseName: `Case #${e.case_id || e.caseName}`
         }));
         setEvidence(formatted);
       })
@@ -46,10 +46,51 @@ const Evidence = () => {
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setEvidence([{ ...form, id: Date.now() }, ...evidence]);
-    setShow(false);
+    setError('');
+
+    try {
+      const res = await fetch('/api/evidence', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          evidencetype: form.evidenceType,
+          description: form.description,
+          submissiondate: form.submissionDate,
+          casename: form.caseName
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to submit evidence');
+      }
+
+      const result = await res.json();
+      const newEvidence = {
+        id: result.id || Date.now(),
+        evidenceType: form.evidenceType,
+        description: form.description,
+        submissionDate: form.submissionDate,
+        caseName: form.caseName
+      };
+
+      setEvidence([newEvidence, ...evidence]);
+      setForm({
+        evidenceType: '',
+        description: '',
+        submissionDate: '',
+        caseName: ''
+      });
+      setShow(false);
+    } catch (err) {
+      console.error('Submit Error:', err);
+      setError(err.message);
+    }
   };
 
   return (

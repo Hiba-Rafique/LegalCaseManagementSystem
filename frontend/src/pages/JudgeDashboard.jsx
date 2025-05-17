@@ -23,170 +23,7 @@ function JudgeDashboard() {
   const [status, setStatus] = useState('All');
 
   const [cases, setCases] = useState([
-    {
-      id: 1,
-      title: 'State v. Smith',
-      description: 'Criminal case involving theft',
-      caseType: 'Criminal',
-      filingDate: '2024-01-15',
-      status: 'Open',
-      lawyers: 'Alex Mason (Prosecutor) & John Doe (Defense)',
-      clientName: 'Jane Smith',
-      courtName: 'Metropolis Central Courthouse',
-      nextHearing: '2024-03-20',
-      remarks: 'Pending evidence submission',
-      finalDecision: null,
-      history: [
-        { date: '2024-01-15', event: 'Case filed' },
-        { date: '2024-02-01', event: 'First hearing' }
-      ],
-      evidence: [
-        { 
-          id: 1, 
-          type: 'Video',
-          description: 'Security camera footage from the crime scene',
-          submittedDate: '2024-02-01',
-          evidencePath: '/evidence/video1.mp4'
-        },
-        { 
-          id: 2, 
-          type: 'Document',
-          description: 'Witness statement detailing the incident',
-          submittedDate: '2024-02-05',
-          evidencePath: '/evidence/statement1.pdf'
-        }
-      ],
-      witnesses: [
-        { 
-          id: 1, 
-          firstName: 'John',
-          lastName: 'Smith',
-          cnic: '12345-6789012-3',
-          phone: '555-0123',
-          email: 'john.smith@email.com',
-          address: '123 Main St, City',
-          pastHistory: 'No prior criminal record'
-        },
-        { 
-          id: 2, 
-          firstName: 'Sarah',
-          lastName: 'Johnson',
-          cnic: '98765-4321098-7',
-          phone: '555-0124',
-          email: 'sarah.j@email.com',
-          address: '456 Oak Ave, City',
-          pastHistory: 'Expert witness in 3 previous cases'
-        }
-      ]
-    },
-    {
-      id: 2,
-      title: 'People v. Doe',
-      description: 'Civil case regarding property dispute',
-      caseType: 'Civil',
-      filingDate: '2024-02-01',
-      status: 'Pending',
-      lawyers: 'Sam Fisher (Prosecutor) & Sarah Wilson (Defense)',
-      clientName: 'John Doe',
-      courtName: 'Metropolis Central Courthouse',
-      nextHearing: '2024-03-25',
-      remarks: 'Awaiting witness testimony',
-      finalDecision: null,
-      history: [
-        { date: '2024-02-01', event: 'Case filed' }
-      ],
-      evidence: [
-        { 
-          id: 1, 
-          type: 'Document',
-          description: 'Property deed showing ownership history',
-          submittedDate: '2024-02-10',
-          evidencePath: '/evidence/deed1.pdf'
-        }
-      ],
-      witnesses: [
-        { 
-          id: 1, 
-          firstName: 'Michael',
-          lastName: 'Brown',
-          cnic: '45678-9012345-6',
-          phone: '555-0125',
-          email: 'michael.b@email.com',
-          address: '789 Pine Rd, City',
-          pastHistory: 'Licensed property surveyor with 15 years experience'
-        }
-      ]
-    },
-    {
-      id: 3,
-      title: 'State v. Johnson',
-      description: 'Criminal case involving fraud',
-      caseType: 'Criminal',
-      filingDate: '2023-12-01',
-      status: 'Completed',
-      lawyers: 'Robert Chen (Prosecutor) & Emily Parker (Defense)',
-      clientName: 'David Johnson',
-      courtName: 'Metropolis Central Courthouse',
-      nextHearing: 'N/A',
-      remarks: 'Case closed with final decision',
-      finalDecision: {
-        verdict: 'Guilty',
-        summary: 'Based on the evidence presented and witness testimonies, the defendant is found guilty of fraud. The evidence clearly shows a pattern of intentional deception for financial gain.',
-        date: '2024-02-15'
-      },
-      history: [
-        { date: '2023-12-01', event: 'Case filed' },
-        { date: '2023-12-15', event: 'First hearing' },
-        { date: '2024-01-10', event: 'Evidence submission completed' },
-        { date: '2024-01-25', event: 'Final arguments presented' },
-        { date: '2024-02-15', event: 'Final decision announced: Guilty' }
-      ],
-      evidence: [
-        { 
-          id: 1, 
-          type: 'Document',
-          description: 'Financial records showing fraudulent transactions',
-          submittedDate: '2023-12-20',
-          evidencePath: '/evidence/financial_records.pdf'
-        },
-        { 
-          id: 2, 
-          type: 'Document',
-          description: 'Email correspondence proving intent',
-          submittedDate: '2024-01-05',
-          evidencePath: '/evidence/emails.pdf'
-        },
-        { 
-          id: 3, 
-          type: 'Document',
-          description: 'Bank statements showing fund transfers',
-          submittedDate: '2024-01-08',
-          evidencePath: '/evidence/bank_statements.pdf'
-        }
-      ],
-      witnesses: [
-        { 
-          id: 1, 
-          firstName: 'James',
-          lastName: 'Wilson',
-          cnic: '34567-8901234-5',
-          phone: '555-0126',
-          email: 'james.w@email.com',
-          address: '321 Bank St, City',
-          pastHistory: 'Financial expert witness in 5 previous cases'
-        },
-        { 
-          id: 2, 
-          firstName: 'Lisa',
-          lastName: 'Thompson',
-          cnic: '23456-7890123-4',
-          phone: '555-0127',
-          email: 'lisa.t@email.com',
-          address: '654 Finance Ave, City',
-          pastHistory: 'Bank manager with 20 years experience'
-        }
-      ]
-    }
+    
   ]);
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -358,14 +195,14 @@ useEffect(() => {
 
       const result = await response.json();
       if (result.hearings) {
-        setHearings(result.hearings.map(h => ({
-          id: h.hearingid,
-          caseTitle: h.casename || 'N/A',
-          courtName: h.courtroomid || 'N/A',
-          date: h.hearingdate,
-          time: h.hearingtime,
-          remarks: h.remarks || ''
-        })));
+       setHearings(result.hearings.map(h => ({
+  id: h.id,
+  casetitle: h.casetitle || 'N/A',
+  courtname: h.courtname || 'N/A',
+  hearingdate: h.hearingdate,
+  hearingtime: h.hearingtime,
+  remarks: h.remarks || ''
+})));
       }
     } catch (err) {
       console.error('Error fetching hearings:', err);
@@ -405,61 +242,149 @@ useEffect(() => {
     setShowDecisionModal(true);
   };
 
-  const handleDecisionSubmit = (e) => {
-    e.preventDefault();
-    if (selectedCase) {
-      setCases(cases.map(c => 
-        c.id === selectedCase.id 
-          ? { 
-              ...c, 
-              finalDecision: decisionForm.verdict,
-              status: 'Completed',
-              history: [
-                ...c.history,
-                { 
-                  date: decisionForm.date,
-                  event: `Decision announced: ${decisionForm.verdict}`
-                }
-              ]
-            }
-          : c
-      ));
-      setShowDecisionModal(false);
+  const handleDecisionSubmit = async (e) => {
+  e.preventDefault();
+  if (!selectedCase) return;
+
+  try {
+    const res = await fetch(`/api/cases/${selectedCase.id}/final-decision`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        verdict: decisionForm.verdict,
+        decisionsummary: decisionForm.summary,
+        decisiondate: decisionForm.date,
+      }),
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      throw new Error(result.message || 'Failed to submit final decision');
     }
-  };
+
+    // Optionally update the case list or mark case as completed in UI
+    setCases(cases.map(c =>
+      c.id === selectedCase.id
+        ? {
+            ...c,
+            finalDecision: decisionForm.verdict,
+            status: 'Completed',
+            history: [
+              ...(c.history || []),
+              {
+                date: decisionForm.date,
+                event: `Decision announced: ${decisionForm.verdict}`
+              }
+            ]
+          }
+        : c
+    ));
+
+    setShowDecisionModal(false);
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+};
+
 
   const handleHearingFormChange = (e) => {
     const { name, value } = e.target;
     setHearingForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddHearing = (e) => {
-    e.preventDefault();
-    if (hearingForm.hearingDate < today) {
-      alert('Cannot schedule hearings for past dates.');
-      return;
+  const handleAddHearing = async (e) => {
+  e.preventDefault();
+  if (hearingForm.hearingDate < today) {
+    alert('Cannot schedule hearings for past dates.');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/hearings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        casetitle: hearingForm.caseTitle,
+        courtname: hearingForm.courtName,
+        hearingdate: hearingForm.hearingDate,
+        hearingtime: hearingForm.hearingTime,
+        remarks: hearingForm.remarks || null
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to schedule hearing');
     }
-    setHearings([
-      ...hearings,
+
+    // Refresh hearings or append new one (if API returns it)
+    // You can optionally re-fetch all hearings or optimistically update:
+    setHearings(prev => [
+      ...prev,
       {
         id: Date.now(),
-        caseTitle: hearingForm.caseTitle,
-        courtName: hearingForm.courtName,
-        date: hearingForm.hearingDate,
-        time: hearingForm.hearingTime,
-        remarks: hearingForm.remarks
+        casetitle: hearingForm.caseTitle,
+        courtname: hearingForm.courtName,
+        hearingdate: hearingForm.hearingDate,
+        hearingtime: hearingForm.hearingTime,
+        remarks: hearingForm.remarks || ''
       }
     ]);
+
     setShowAddHearingModal(false);
     setHearingForm({ caseTitle: '', courtName: '', hearingDate: '', hearingTime: '', remarks: '' });
-  };
 
-  const handleAddRemarks = (hearingId) => {
-    const remarks = prompt('Enter remarks for this hearing:');
-    if (remarks !== null) {
-      setHearings(hearings.map(h => h.id === hearingId ? { ...h, remarks } : h));
+  } catch (err) {
+    console.error('Error scheduling hearing:', err);
+    alert('Error scheduling hearing: ' + err.message);
+  }
+};
+
+const updateHearingRemarks = async (hearingId, remarks) => {
+  try {
+    const response = await fetch(`/api/hearings/remarks?hearingid=${hearingId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ remarks }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to update remarks');
     }
-  };
+
+    return true;
+  } catch (error) {
+    console.error('Error updating hearing remarks:', error);
+    return false;
+  }
+};
+
+ const handleAddRemarks = async (hearingId) => {
+  const remarks = prompt('Enter remarks for this hearing:');
+  if (remarks !== null) {
+    const success = await updateHearingRemarks(hearingId, remarks);
+    if (success) {
+      setHearings(hearings.map(h => h.id === hearingId ? { ...h, remarks } : h));
+    } else {
+      alert('Failed to update remarks. Please try again.');
+    }
+  }
+};
 
   const handleLogout = () => {
     localStorage.clear();
@@ -649,29 +574,34 @@ useEffect(() => {
                         </tr>
                       </thead>
                       <tbody>
-                        {hearings.length === 0 ? (
-                          <tr><td colSpan={6} className="text-center text-muted py-4">No hearings scheduled.</td></tr>
-                        ) : (
-                          hearings.map(hearing => (
-                            <tr key={hearing.id}>
-                              <td>{hearing.caseTitle}</td>
-                              <td>{hearing.courtName}</td>
-                              <td>{hearing.date}</td>
-                              <td>{hearing.time}</td>
-                              <td>{hearing.remarks || <span className="text-muted">-</span>}</td>
-                              <td>
-                                <Button 
-                                  variant="outline-warning" 
-                                  size="sm" 
-                                  onClick={() => handleAddRemarks(hearing.id)}
-                                >
-                                  {hearing.remarks ? 'Edit Remarks' : 'Add Remarks'}
-                                </Button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
+  {hearings.length === 0 ? (
+    <tr>
+      <td colSpan={6} className="text-center text-muted py-4">
+        No hearings scheduled.
+      </td>
+    </tr>
+  ) : (
+    hearings.map(hearing => (
+      <tr key={hearing.id}>
+        <td>{hearing.casetitle}</td>
+        <td>{hearing.courtname}</td>
+        <td>{hearing.hearingdate}</td>
+        <td>{hearing.hearingtime}</td>
+        <td>{hearing.remarks || <span className="text-muted">-</span>}</td>
+        <td>
+          <Button 
+            variant="outline-warning" 
+            size="sm" 
+            onClick={() => handleAddRemarks(hearing.id)}
+          >
+            {hearing.remarks ? 'Edit Remarks' : 'Add Remarks'}
+          </Button>
+        </td>
+      </tr>
+    ))
+  )}
+</tbody>
+
                     </Table>
                   </Card.Body>
                 </Card>

@@ -15,9 +15,22 @@ const Billing = ({ payments = [], onCreatePayment }) => {
 
   // Simulate fetching payment info from court table
   const courtPayments = [
-    { casename: 'State v. Smith', purpose: 'Filing', balance: 1000, status: 'Pending', courtName: 'Metropolis Central Courthouse' },
-    { casename: 'People v. Doe', purpose: 'Consultation', balance: 2000, status: 'Pending', courtName: 'Metropolis Central Courthouse' }
-  ];
+  {
+    casename: 'State v. Smith',
+    purpose: 'Filing',
+    balance: 1000,
+    status: 'Pending',
+    courtname: 'Metropolis Central Courthouse'  // lowercase n
+  },
+  {
+    casename: 'People v. Doe',
+    purpose: 'Consultation',
+    balance: 2000,
+    status: 'Pending',
+    courtname: 'Metropolis Central Courthouse'  // lowercase n
+  }
+];
+
 
   const handleCaseChange = (e) => {
     const casename = e.target.value;
@@ -112,7 +125,7 @@ const Billing = ({ payments = [], onCreatePayment }) => {
                             {p.status}
                           </Badge>
                         </td>
-                        <td>{p.courtName}</td>
+                        <td>{p.courtname}</td>
                       </tr>
                     ))
                   )}

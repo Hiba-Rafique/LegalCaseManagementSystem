@@ -167,15 +167,15 @@ useEffect(() => {
         caseType: c.casetype,
         filingDate: c.filingdate,
         status: c.status,
-        prosecutor: c.prosecutor || 'Not Assigned',
-        lawyerName: c.lawyername || 'John Doe',
         clientName: c.clientname || 'N/A',
         courtName: c.courtname || 'N/A',
-        judgeName: c.judgename || 'N/A',
+        judgeName: c.judgeName || 'N/A',
         decisionDate: c.decisiondate || '',
         decisionSummary: c.decisionsummary || '',
         verdict: c.verdict || '',
-        history: c.history || []
+        history: c.history || [],
+        remandStatus: c.remandstatus || '',
+        prosecutor:c.prosecutorName || 'N/A'
       }));
       setCases(normalizedCases);
     } else {
@@ -414,21 +414,32 @@ const handleCaseSubmit = async (e) => {
                               </Badge>
                             </td>
                             <td>
-                              {remand ? (
-                                <Badge bg={remand.status === 'Active' ? 'info' : 'secondary'}>
-                                  {remand.status === 'Active' ? 'Remand Active' : 'Remand Completed'}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted">-</span>
-                              )}
-                            </td>
-                            <td>
-                              {case_.status === 'Closed' ? (
-                                <Button variant="link" size="sm" onClick={() => { setDecisionCase(case_); setShowDecisionModal(true); }}>View</Button>
-                              ) : (
-                                <span className="text-muted">-</span>
-                              )}
-                            </td>
+  {case_.remandStatus ? (
+    <Badge bg={case_.remandStatus === 'Active' ? 'info' : 'secondary'}>
+      {case_.remandStatus === 'Active' ? 'Remand Active' : 'Remand Completed'}
+    </Badge>
+  ) : (
+    <span className="text-muted">-</span>
+  )}
+</td>
+
+<td>
+  {case_.status === 'Closed' && (case_.decisionDate || case_.decisionSummary || case_.verdict) ? (
+    <Button
+      variant="link"
+      size="sm"
+      onClick={() => {
+        setDecisionCase(case_);
+        setShowDecisionModal(true);
+      }}
+    >
+      View
+    </Button>
+  ) : (
+    <span className="text-muted">-</span>
+  )}
+</td>
+
                             <td>
                               <Button variant="link" size="sm" onClick={() => { setHistoryCase(case_); setShowHistoryModal(true); }}>View</Button>
                             </td>

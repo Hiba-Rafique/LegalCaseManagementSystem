@@ -10,8 +10,10 @@ const CourtRegistrationPage = () => {
       const response = await fetch('/api/court', {
         method: 'POST',
         headers: {
+          
           'Content-Type': 'application/json',
         },
+        
         body: JSON.stringify(data),
       });
 

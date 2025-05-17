@@ -11,45 +11,26 @@ import RegistrarHearingSchedule from '../components/dashboard/RegistrarHearingSc
 
 // Mock data for demonstration
 const mockJudges = [
-  { id: 1, name: 'Judge Judy' },
-  { id: 2, name: 'Judge Dredd' },
-  { id: 3, name: 'Judge Amy' },
-  { id: 4, name: 'Judge John' },
+  
 ];
 const mockProsecutors = [
-  { id: 1, name: 'Alex Mason' },
-  { id: 2, name: 'Sam Fisher' },
-  { id: 3, name: 'Lara Croft' },
+ 
 ];
 const mockCases = [
-  { id: 1, title: 'State v. Smith' },
-  { id: 2, title: 'People v. Doe' },
-  { id: 3, title: 'Acme Corp v. Beta' },
+  
 ];
 
 // Mock court details for screenshot
 const mockCourt = {
-  name: 'Metropolis Central Courthouse',
-  location: '123 Justice Avenue, Metropolis, MZ 12345',
-  courtId: 'MCC-001',
-  phone: '(555) 123-4567',
-  email: 'registrar@metropoliscourts.gov',
-  image: lawImage,
+  
 };
 const mockActivity = [
-  { activity: "New case #C2024-08-15-001 (State v. Byte) filed.", type: "Case", timestamp: "2024-08-15 09:30 AM" },
-  { activity: "Court Room 3 schedule updated for hearings.", type: "Room", timestamp: "2024-08-14 04:15 PM" },
-  { activity: "Appeal #A2024-007 (Smith v. Corp) hearing scheduled.", type: "Appeal", timestamp: "2024-08-14 02:00 PM" },
-  { activity: "User 'johndoe_clerk' logged in.", type: "System", timestamp: "2024-08-15 08:00 AM" },
+  
 ];
 
 // Mock data for Court Rooms and Cases
 const mockRooms = [
-  { number: '101', name: 'Justice Hall A', capacity: 75, type: 'Trial Room', status: 'Available' },
-  { number: '102', name: 'Deliberation Chamber', capacity: 30, type: 'Hearing Room', status: 'Occupied' },
-  { number: '201', name: 'Mediation Suite', capacity: 15, type: 'Conference Room', status: 'Maintenance' },
-  { number: '202', name: 'Justice Hall B', capacity: 75, type: 'Trial Room', status: 'Available' },
-  { number: '301', name: ",Judge Miller's Chambers", capacity: 5, type: 'Chambers', status: 'Reserved' },
+  
 ];
 
 const RegistrarDashboard = () => {
@@ -64,6 +45,27 @@ const [courtError, setCourtError] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchCourt, setSearchCourt] = useState('');
   
+const [judges, setJudges] = useState([]);
+const [activityLogs, setActivityLogs] = useState([]);
+
+useEffect(() => {
+  const fetchActivityLogs = async () => {
+    try {
+      const response = await fetch('/api/logs/activity', {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch activity logs');
+      const data = await response.json();
+      setActivityLogs(data);
+    } catch (err) {
+      console.error(err);
+      showToast('Error loading activity feed', 'danger');
+    }
+  };
+
+  fetchActivityLogs();
+}, []);
+
 
   // Toast state
   const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
@@ -234,14 +236,18 @@ const getAppeals = async () => {
     const data = await response.json();
 
     // Map backend fields to frontend fields
-    const mappedAppeals = data.appeals.map(appeal => ({
-      appealDate: appeal.appealdate,   // Mapping appealdate to appealDate
-      status: appeal.appealstatus,     // Mapping appealstatus to status
-      caseName: appeal.casename,       // Mapping casename to caseName
-      courtName: appeal.courtname,     // Mapping courtname to courtName
-      decision: appeal.decision,       // Keeping decision as is
-      decisionDate: appeal.decisiondate, // Mapping decisiondate to decisionDate
-    }));
+  const mappedAppeals = data.appeals.map(appeal => ({
+  appealId: appeal.appealid,             
+  appealDate: appeal.appealdate,
+  status: appeal.status,
+  caseName: appeal.casename,
+  courtName: appeal.courtname,
+  decision: appeal.decision,
+  decisionDate: appeal.decisiondate,
+  lawyerName: appeal.lawyername,
+  clientName: appeal.clientname
+}));
+
 
     setAppeals(mappedAppeals);
   } catch (err) {
@@ -259,6 +265,49 @@ const fetchProsecutors = async () => {
     return [];
   }
 };
+
+useEffect(() => {
+  if (selectedPage === 'judges') {
+    const fetchJudges = async () => {
+      try {
+        const res = await fetch('/api/judges', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch judges');
+        const data = await res.json();
+        setJudges(data.judges || []);
+      } catch (err) {
+        console.error('Error fetching judges:', err);
+      }
+    };
+
+    fetchJudges();
+  }
+}, [selectedPage]);
+
+useEffect(() => {
+  if (selectedPage === 'remands') {
+    const fetchRemands = async () => {
+      try {
+        const res = await fetch('/api/remands', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch remands');
+        const data = await res.json();
+        setRemands(data || []);
+      } catch (err) {
+        console.error('Error fetching remands:', err);
+      }
+    };
+
+    fetchRemands();
+  }
+}, [selectedPage]);
+
 
 const addProsecutor = async (prosecutor) => {
   try {
@@ -435,6 +484,41 @@ const fetchCourtRooms = (courtId) => {
     });
 };
 
+useEffect(() => {
+  const fetchRegistrarProfile = async () => {
+    try {
+      const response = await fetch('/api/registrarprofile', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch registrar profile');
+      const result = await response.json();
+
+      if (result.success) {
+        const fullName = `${result.data.firstName} ${result.data.lastName}`;
+        const profile = {
+          name: fullName,
+          email: result.data.email,
+          phone: result.data.phone,
+          court: result.data.court,
+          dob: result.data.dob,
+          position: result.data.position,
+        };
+        setProfileData(profile);
+        localStorage.setItem('registrarProfile', JSON.stringify(profile));
+      } else {
+        showToast(result.message || 'Error loading profile', 'danger');
+      }
+    } catch (err) {
+      console.error('Profile fetch error:', err);
+      showToast(err.message || 'Error loading profile', 'danger');
+    }
+  };
+
+  fetchRegistrarProfile();
+}, []);
+
 
   const filteredCases = courtCases.filter(c => {
     if (!searchCase.trim()) return true;
@@ -589,29 +673,116 @@ useEffect(() => {
   };
 
   
+  
   // COURT ROOMS CRUD
   const handleRoomFormChange = (e) => setRoomForm({ ...roomForm, [e.target.name]: e.target.value });
-  const handleRoomSubmit = (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      if (editingRoom) {
-        setCourtRooms(courtRooms.map(r => r.id === editingRoom.id ? { ...editingRoom, ...roomForm } : r));
-        showToast('Room updated!');
-      } else {
-        setCourtRooms([...courtRooms, { ...roomForm, id: Date.now() }]);
-        showToast('Room added!');
-      }
-      setRoomForm({ number: '', name: '', capacity: '', type: '', status: '' });
-      setShowRoomModal(false);
-      setEditingRoom(null);
-      setLoading(false);
-    }, 500);
-  };
-  const handleRoomView = (room) => { setViewingRoom(room); setShowRoomViewModal(true); };
-  const handleRoomEdit = (room) => { setEditingRoom(room); setRoomForm({ ...room }); setShowRoomModal(true); };
-  const handleRoomDelete = (room) => setConfirm({ show: true, type: 'deleteRoom', payload: room });
-  const handleRoomAdd = () => { setEditingRoom(null); setRoomForm({ number: '', name: '', capacity: '', type: '', status: '' }); setShowRoomModal(true); };
+  const handleRoomSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+
+  const isEditing = !!editingRoom;
+  const url = isEditing 
+    ? `/api/courtrooms/${editingRoom.id}` 
+    : '/api/courtrooms';
+  const method = isEditing ? 'PUT' : 'POST';
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(roomForm),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || (isEditing ? 'Failed to update room' : 'Failed to add room'));
+    }
+
+    showToast(isEditing ? 'Room updated!' : 'Room added!');
+    setShowRoomModal(false);
+    setEditingRoom(null);
+    setRoomForm({
+      number: '',
+      name: '',
+      capacity: '',
+      type: '',
+      status: 'Available',
+    });
+
+    // Optionally refresh room list
+    if (selectedCourt?.id) {
+      fetchCourtRooms(selectedCourt.id);
+    }
+
+  } catch (err) {
+    console.error('Room error:', err);
+    showToast(err.message || 'Error submitting room', 'danger');
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  const handleRoomView = (room) => {
+  setViewingRoom(room);
+  setShowRoomViewModal(true);
+};
+
+const handleConfirmDeleteRoom = async () => {
+  const room = confirm.payload;
+  if (!room) return;
+
+  try {
+    const response = await fetch(`/api/courtrooms/${room.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete room');
+    }
+
+    setCourtRooms(courtRooms.filter(r => r.id !== room.id));
+    showToast('Room deleted!');
+  } catch (err) {
+    console.error('Delete room error:', err);
+    showToast(err.message || 'Error deleting room', 'danger');
+  } finally {
+    setConfirm({ show: false, type: '', payload: null });
+  }
+};
+
+const handleRoomEdit = (room) => {
+  setEditingRoom(room);
+  setRoomForm({
+    number: room.number || '',
+    name: room.name || '',
+    capacity: room.capacity || '',
+    type: room.type || '',
+    availability: room.availability,
+    id: room.id || null,  // keep id for update
+  });
+  setShowRoomModal(true);
+};
+
+const handleRoomDelete = (room) => {
+  setConfirm({ show: true, type: 'deleteRoom', payload: room });
+};
+
+const handleRoomAdd = () => {
+  setEditingRoom(null);
+  setRoomForm({
+    number: '',
+    name: '',
+    capacity: '',
+    type: '',
+    availability: 'Available',
+    id: null,
+  });
+  setShowRoomModal(true);
+};
 
   // JUDGES
   const handleAssignJudge = (judge) => {
@@ -626,10 +797,47 @@ useEffect(() => {
   const handleUnassignProsecutor = (prosecutor) => setCourtProsecutors(courtProsecutors.filter(p => p.id !== prosecutor.id));
 
   // PAYMENTS
-  const handleAddPayment = () => {
-    setCourtPayments([...courtPayments, { id: Date.now(), amount: Math.floor(Math.random()*1000)+100, date: new Date().toLocaleDateString() }]);
+  const handleAddPayment = async () => {
+  try {
+    const response = await fetch('/api/payments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        casename: paymentForm.casename,         // e.g., "State v. John Doe"
+        purpose: paymentForm.purpose,           // e.g., "Filing Fee"
+        balance: paymentForm.balance,           // e.g., "250.00"
+        mode: paymentForm.mode,                 // e.g., "Online"
+        paymenttype: paymentForm.paymenttype,   // e.g., "Initial"
+        paymentdate: paymentForm.paymentdate || new Date().toISOString().split("T")[0] // fallback to today
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to add payment');
+    }
+
+    const data = await response.json();
+
+    // Add returned payment data to UI list
+    setCourtPayments([...courtPayments, {
+      id: Date.now(),
+      amount: data.payment.balance,
+      date: data.payment.paymentdate,
+      purpose: data.payment.purpose,
+      mode: data.payment.mode,
+      casename: data.payment.casename,
+      paymenttype: data.payment.paymenttype
+    }]);
+
     showToast('Payment added!');
-  };
+  } catch (err) {
+    console.error('Error adding payment:', err);
+    showToast(err.message || 'Error adding payment', 'danger');
+  }
+};
+
 
   // APPEALS
   const handleAddAppeal = () => {
@@ -745,6 +953,16 @@ useEffect(() => {
       prosecutor: ''
     });
   };
+
+  useEffect(() => {
+  const loadProsecutors = async () => {
+    const prosecutors = await fetchProsecutors();
+    setCourtProsecutors(prosecutors); // Assuming you have this state
+  };
+
+  loadProsecutors();
+}, []);
+
 
   // Profile handlers
   const handleProfileSave = () => {
@@ -918,17 +1136,32 @@ useEffect(() => {
   const handleDecisionFormChange = (e) => {
     setDecisionForm({ ...decisionForm, [e.target.name]: e.target.value });
   };
-  const handleDecisionSubmit = (e) => {
-    e.preventDefault();
-    setAppeals(appeals.map(a =>
-      a.id === decisionAppeal.id
-        ? { ...a, status: decisionForm.status, decisionDate: decisionForm.decisionDate, decision: decisionForm.decision }
-        : a
-    ));
+  const handleDecisionSubmit = async (e) => {
+  e.preventDefault();
+
+  try {
+    const response = await fetch(`/api/appealdecision?appealId=${decisionAppeal.appealId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        appealStatus: decisionForm.status,
+        decisionDate: decisionForm.decisionDate,
+        decision: decisionForm.decision
+      }),
+    });
+
+    if (!response.ok) throw new Error('Failed to update appeal decision');
+
+    showToast('Appeal decision updated!');
+    await getAppeals(); // Refresh list
     setShowDecisionModal(false);
     setDecisionAppeal(null);
-  };
-
+  } catch (err) {
+    console.error('Error updating decision:', err);
+    showToast(err.message || 'Failed to update decision', 'danger');
+  }
+};
   // Add after other state declarations
   const [showProsecutorModal, setShowProsecutorModal] = useState(false);
   const [editingProsecutor, setEditingProsecutor] = useState(null);
@@ -943,51 +1176,199 @@ useEffect(() => {
   const handleProsecutorFormChange = (e) => {
     setProsecutorForm({ ...prosecutorForm, [e.target.name]: e.target.value });
   };
+const handleProsecutorSubmit = async (e) => {
+  e.preventDefault();
 
-  const handleProsecutorSubmit = (e) => {
-    e.preventDefault();
+  const url = editingProsecutor ? '/api/prosecutor' : '/api/prosecutor';
+  const method = editingProsecutor ? 'PUT' : 'POST';
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        id: prosecutorForm.id,
+        name: prosecutorForm.name,
+        experience: prosecutorForm.experience,
+        status: prosecutorForm.status,
+        case_names: prosecutorForm.assignedCases,
+      }),
+    });
+
+    if (!response.ok) throw new Error('Failed to save prosecutor');
+    const result = await response.json();
+
     if (editingProsecutor) {
-      setCourtProsecutors(courtProsecutors.map(p => 
-        p.id === editingProsecutor.id ? { ...editingProsecutor, ...prosecutorForm } : p
+      setProsecutors(prosecutors.map(p =>
+        p.id === prosecutorForm.id
+          ? {
+              ...p,
+              name: prosecutorForm.name,
+              experience: prosecutorForm.experience,
+              status: prosecutorForm.status,
+              assignedCases: prosecutorForm.assignedCases,
+            }
+          : p
       ));
+      showToast('Prosecutor updated!');
     } else {
-      setCourtProsecutors([...courtProsecutors, { ...prosecutorForm, id: Date.now() }]);
+      const newProsecutor = result;
+      setProsecutors([...prosecutors, {
+        id: newProsecutor.id,
+        name: newProsecutor.name,
+        experience: newProsecutor.experience,
+        status: newProsecutor.status,
+        assignedCases: newProsecutor.assigned_cases || [],
+      }]);
+      showToast('Prosecutor added!');
     }
+  } catch (err) {
+    console.error('Error submitting prosecutor:', err);
+    showToast(err.message || 'Submission failed', 'danger');
+  } finally {
     setShowProsecutorModal(false);
     setEditingProsecutor(null);
-    setProsecutorForm({ name: '', experience: '', status: 'Active', assignedCases: [] });
-  };
+    setProsecutorForm({
+      name: '',
+      experience: '',
+      status: '',
+      assignedCases: [],
+    });
+  }
+};
 
   const handleEditProsecutor = (prosecutor) => {
-    setEditingProsecutor(prosecutor);
-    setProsecutorForm({ ...prosecutor });
-    setShowProsecutorModal(true);
-  };
+  setEditingProsecutor(prosecutor);
+  setProsecutorForm({
+    name: prosecutor.name,
+    experience: prosecutor.experience,
+    status: prosecutor.status,
+    assignedCases: prosecutor.assignedCases || [],
+    id: prosecutor.id
+  });
+  setShowProsecutorModal(true);
+};
 
-  const handleDeleteProsecutor = (prosecutor) => {
-    setCourtProsecutors(courtProsecutors.filter(p => p.id !== prosecutor.id));
-  };
+
+ const handleDeleteProsecutor = async (prosecutorId) => {
+  try {
+    const res = await fetch(`/api/prosecutor/${prosecutorId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+
+    if (!res.ok) throw new Error('Failed to delete prosecutor');
+
+    setProsecutors(prosecutors.filter(p => p.id !== prosecutorId));
+    showToast('Prosecutor deleted!');
+  } catch (err) {
+    console.error('Error deleting prosecutor:', err);
+    showToast('Error deleting prosecutor', 'danger');
+  }
+};
+
 
   // JUDGES
   const handleJudgeFormChange = (e) => {
     setJudgeForm({ ...judgeForm, [e.target.name]: e.target.value });
   };
-  const handleJudgeSubmit = (e) => {
-    e.preventDefault();
+ const handleJudgeSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    let response;
+
     if (editingJudge) {
-      setCourtJudges(courtJudges.map(j => j.id === editingJudge.id ? { ...editingJudge, ...judgeForm } : j));
+      // Editing: send PUT to update profile
+      response = await fetch('/api/judge', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          specialization: judgeForm.specialization,
+          appointmentdate: judgeForm.appointmentDate,
+          expyears: judgeForm.experience,
+          position: judgeForm.position,
+        }),
+      });
     } else {
-      setCourtJudges([...courtJudges, { ...judgeForm, id: Date.now() }]);
+      // Adding new judge: send POST
+      response = await fetch('/api/judges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(judgeForm),
+      });
     }
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to submit judge');
+    }
+
+    const data = await response.json();
+
+    if (editingJudge) {
+      // Update judge in list
+      setCourtJudges(courtJudges.map(j =>
+        j.id === editingJudge.id
+          ? {
+              ...j,
+              position: judgeForm.position,
+              experience: judgeForm.experience,
+              appointmentDate: judgeForm.appointmentDate,
+              specialization: judgeForm.specialization,
+              // assignedCases stay unchanged or update if needed
+            }
+          : j
+      ));
+      showToast('Judge profile updated!');
+    } else {
+      // Add new judge to list
+      setCourtJudges([
+        ...courtJudges,
+        {
+          id: data.judgeid,
+          name: data.name,
+          position: data.position,
+          experience: data.expyears,
+          appointmentDate: data.appointmentdate,
+          specialization: data.specialization,
+          assignedCases: data.assigned_cases || [],
+        }
+      ]);
+      showToast('Judge added!');
+    }
+  } catch (err) {
+    console.error('Error submitting judge:', err);
+    showToast(err.message || 'Error submitting judge', 'danger');
+  } finally {
     setShowJudgeModal(false);
     setEditingJudge(null);
-    setJudgeForm({ name: '', position: '', experience: '', appointmentDate: '', specialization: '', assignedCases: [] });
-  };
-  const handleEditJudge = (judge) => {
-    setEditingJudge(judge);
-    setJudgeForm({ ...judge });
-    setShowJudgeModal(true);
-  };
+    setJudgeForm({
+      name: '',
+      position: '',
+      experience: '',
+      appointmentDate: '',
+      specialization: '',
+      assignedCases: []
+    });
+  }
+};
+
+const handleEditJudge = (judge) => {
+  setEditingJudge(judge);
+  setJudgeForm({
+    name: judge.name,
+    position: judge.position,
+    experience: judge.experience,
+    appointmentDate: judge.appointmentDate,
+    specialization: judge.specialization,
+    assignedCases: judge.assignedCases || []
+  });
+  setShowJudgeModal(true);
+};
+
   const handleDeleteJudge = (judge) => {
     setCourtJudges(courtJudges.filter(j => j.id !== judge.id));
   };
@@ -1014,17 +1395,40 @@ useEffect(() => {
   const handleRemandFormChange = (e) => {
     setRemandForm({ ...remandForm, [e.target.name]: e.target.value });
   };
-  const handleRemandSubmit = (e) => {
-    e.preventDefault();
-    if (editingRemand) {
-      setRemands(remands.map(r => r.id === editingRemand.id ? { ...editingRemand, ...remandForm } : r));
-    } else {
-      setRemands([{ ...remandForm, id: Date.now() }, ...remands]);
-    }
+  const handleRemandSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const response = await fetch('/api/remands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(remandForm),
+    });
+
+    if (!response.ok) throw new Error('Failed to submit remand');
+
+    const newRemand = await response.json();
+    setRemands([newRemand, ...remands]);  // Add to top
+    showToast('Remand added!');
+  } catch (err) {
+    console.error('Error submitting remand:', err);
+    showToast('Error adding remand', 'danger');
+  } finally {
     setShowRemandModal(false);
     setEditingRemand(null);
-    setRemandForm({ caseName: '', lawyerName: '', clientName: '', remandType: '', remandDate: '', remandReason: '', status: '', duration: '' });
-  };
+    setRemandForm({
+      caseName: '',
+      lawyerName: '',
+      clientName: '',
+      remandType: '',
+      remandDate: '',
+      remandReason: '',
+      status: '',
+      duration: ''
+    });
+  }
+};
+
   const handleEditRemand = (remand) => {
     setEditingRemand(remand);
     setRemandForm({ ...remand });
@@ -1258,30 +1662,37 @@ useEffect(() => {
                       </Card.Body>
                     </Card>
                     <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
-                      <Card.Body>
-                        <h3 className="fw-bold mb-3" style={{ color: '#22304a' }}><i className="bi bi-clock-history me-2"></i>Recent Activity</h3>
-                        <div className="table-responsive">
-                          <table className="table table-borderless align-middle mb-0">
-                            <thead style={{ background: '#f4f6fa' }}>
-                              <tr style={{ color: '#22304a', fontWeight: 600 }}>
-                                <th>Activity</th>
-                                <th>Type</th>
-                                <th>Timestamp</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {mockActivity.map((a, i) => (
-                                <tr key={i}>
-                                  <td>{a.activity}</td>
-                                  <td>{a.type}</td>
-                                  <td>{a.timestamp}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-              </Card.Body>
-            </Card>
+  <Card.Body>
+    <h3 className="fw-bold mb-3" style={{ color: '#22304a' }}>
+      <i className="bi bi-clock-history me-2"></i>Recent Activity
+    </h3>
+    <div className="table-responsive">
+      <table className="table table-borderless align-middle mb-0">
+        <thead style={{ background: '#f4f6fa' }}>
+          <tr style={{ color: '#22304a', fontWeight: 600 }}>
+            <th>Activity</th>
+            <th>Type</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {activityLogs.length > 0 ? activityLogs.map((a, i) => (
+            <tr key={i}>
+              <td>{a.activity}</td>
+              <td>{a.type}</td>
+              <td>{a.timestamp}</td>
+            </tr>
+          )) : (
+            <tr>
+              <td colSpan="3" className="text-muted text-center">No recent activity</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </Card.Body>
+</Card>
+
           </Col>
                   <Col md={4}>
                     <Card className="shadow-sm border-0 mb-4" style={{ borderRadius: 16 }}>
@@ -1363,7 +1774,7 @@ useEffect(() => {
         <td>
           <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomView(room)}><Eye size={16} /></Button>
           <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomEdit(room)}><Edit2 size={16} /></Button>
-          <Button variant="outline-danger" size="sm" className="p-1 lh-1" onClick={() => handleRoomDelete(room)}><Trash2 size={16} /></Button>
+          <Button variant="outline-danger" size="sm" className="p-1 lh-1" onClick={() => handleConfirmDeleteRoom(room)}><Trash2 size={16} /></Button>
         </td>
       </tr>
     ))
@@ -1402,10 +1813,14 @@ useEffect(() => {
             <thead className="table-light">
               <tr>
                 <th>Case Name</th>
-                <th>Type</th>
-                <th>Filing Date</th>
-                <th>Status</th>
-                <th>Actions</th>
+                          <th>Type</th>
+                          <th>Filing Date</th>
+                          <th>Client</th>
+                          <th>Lawyer</th>
+                          <th>Prosecutor</th>
+                          <th>Judge</th>
+                          <th>Status</th>
+                          <th>Verify</th>
               </tr>
             </thead>
             <tbody>
@@ -1417,8 +1832,12 @@ useEffect(() => {
                 courtCases.map((case_) => (
                   <tr key={case_.caseid}>
                     <td>{case_.title}</td>
-                    <td>{case_.casetype}</td>
-                    <td>{case_.filingdate}</td>
+                            <td>{case_.casetype}</td>
+                            <td>{case_.filingdate}</td>
+                              <td>{case_.clientName}</td>
+                              <td>{case_.lawyername}</td>
+                              <td>{case_.prosecutor}</td>
+                              <td>{case_.judgeName}</td>
                     <td>
                       <Badge bg={case_.status === 'In Progress' ? 'warning' : case_.status === 'Closed' ? 'success' : 'secondary'} className="px-3 py-1 fs-6">
                         {case_.status}
@@ -1802,7 +2221,7 @@ useEffect(() => {
                                 <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditProsecutor(prosecutor)}>
                                   Edit
                                 </Button>
-                                <Button variant="outline-danger" size="sm" onClick={() => handleDeleteProsecutor(prosecutor)}>
+                                <Button variant="outline-danger" size="sm" onClick={() => handleDeleteProsecutor(prosecutor.id)}>
                                   Remove
                                 </Button>
                               </td>
@@ -1815,144 +2234,151 @@ useEffect(() => {
               </Card>
             )}
             {selectedPage === 'judges' && (
-              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-person-badge me-2"></i>Judge Management</h2>
-                      <div className="text-muted mb-2">Manage court judges and their case assignments.</div>
-                    </div>
-                    <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
-                      setEditingJudge(null);
-                      setJudgeForm({ name: '', position: '', experience: '', appointmentDate: '', specialization: '', assignedCases: [] });
-                      setShowJudgeModal(true);
-                    }}>
-                      <Plus size={20} /> Add Judge
-                    </Button>
-                  </div>
-                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
-                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
-                    <Form.Control 
-                      placeholder="Search judges..." 
-                      value={searchJudge} 
-                      onChange={e => setSearchJudge(e.target.value)} 
-                    />
-                  </InputGroup>
-                  <div className="table-responsive">
-                    <table className="table align-middle mb-0">
-                      <thead style={{ background: '#f4f6fa' }}>
-                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
-                          <th>Name</th>
-                          <th>Position</th>
-                          <th>Experience (years)</th>
-                          <th>Appointment Date</th>
-                          <th>Specialization</th>
-                          <th>Assigned Cases</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {courtJudges
-                          .filter(j => j.name.toLowerCase().includes(searchJudge.toLowerCase()))
-                          .map((judge) => (
-                            <tr key={judge.id}>
-                              <td>{judge.name}</td>
-                              <td>{judge.position}</td>
-                              <td>{judge.experience} years</td>
-                              <td>{judge.appointmentDate}</td>
-                              <td>{judge.specialization}</td>
-                              <td>
-                                {judge.assignedCases.length > 0 ? (
-                                  <ul className="list-unstyled mb-0">
-                                    {judge.assignedCases.map((caseName, idx) => (
-                                      <li key={idx}>{caseName}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <span className="text-muted">No cases assigned</span>
-                                )}
-                              </td>
-                              <td>
-                                <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditJudge(judge)}>
-                                  Edit
-                                </Button>
-                                <Button variant="outline-danger" size="sm" onClick={() => handleDeleteJudge(judge)}>
-                                  Remove
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card.Body>
-              </Card>
-            )}
-            {selectedPage === 'remands' && (
-              <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                      <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-gavel me-2"></i>Remand Management</h2>
-                      <div className="text-muted mb-2">Manage remands for cases in your court.</div>
-                    </div>
-                    <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
-                      setEditingRemand(null);
-                      setRemandForm({ caseName: '', lawyerName: '', clientName: '', remandType: '', remandDate: '', remandReason: '', status: '', duration: '' });
-                      setShowRemandModal(true);
-                    }}>
-                      <Plus size={20} /> Add Remand
-                    </Button>
-                  </div>
-                  <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
-                    <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
-                    <Form.Control 
-                      placeholder="Search remands..." 
-                      // Add search logic if needed
-                    />
-                  </InputGroup>
-                  <div className="table-responsive">
-                    <table className="table align-middle mb-0">
-                      <thead style={{ background: '#f4f6fa' }}>
-                        <tr style={{ color: '#22304a', fontWeight: 600 }}>
-                          <th>Case Name</th>
-                          <th>Lawyer</th>
-                          <th>Client</th>
-                          <th>Remand Type</th>
-                          <th>Remand Date</th>
-                          <th>Reason</th>
-                          <th>Status</th>
-                          <th>Duration</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {remands.map((remand) => (
-                          <tr key={remand.id}>
-                            <td>{remand.caseName}</td>
-                            <td>{remand.lawyerName}</td>
-                            <td>{remand.clientName}</td>
-                            <td>{remand.remandType}</td>
-                            <td>{remand.remandDate}</td>
-                            <td>{remand.remandReason}</td>
-                            <td>{remand.status}</td>
-                            <td>{remand.duration}</td>
-                            <td>
-                              <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditRemand(remand)}>
-                                Edit
-                              </Button>
-                              <Button variant="outline-danger" size="sm" onClick={() => handleDeleteRemand(remand)}>
-                                Remove
-                              </Button>
-                            </td>
-                          </tr>
+  <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+    <Card.Body>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}>
+            <i className="bi bi-person-badge me-2"></i>Judge Management
+          </h2>
+          <div className="text-muted mb-2">Manage court judges and their case assignments.</div>
+        </div>
+        <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
+          setEditingJudge(null);
+          setJudgeForm({ name: '', position: '', experience: '', appointmentDate: '', specialization: '', assignedCases: [] });
+          setShowJudgeModal(true);
+        }}>
+          <Plus size={20} /> Add Judge
+        </Button>
+      </div>
+      <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+        <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+        <Form.Control
+          placeholder="Search judges..."
+          value={searchJudge}
+          onChange={e => setSearchJudge(e.target.value)}
+        />
+      </InputGroup>
+      <div className="table-responsive">
+        <table className="table align-middle mb-0">
+          <thead style={{ background: '#f4f6fa' }}>
+            <tr style={{ color: '#22304a', fontWeight: 600 }}>
+              <th>Name</th>
+              <th>Position</th>
+              <th>Experience (years)</th>
+              <th>Appointment Date</th>
+              <th>Specialization</th>
+              <th>Assigned Cases</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {judges
+              .filter(j => j.name?.toLowerCase().includes(searchJudge.toLowerCase()))
+              .map((judge) => (
+                <tr key={judge.judgeid}>
+                  <td>{judge.name}</td>
+                  <td>{judge.position}</td>
+                  <td>{judge.expyears}</td>
+                  <td>{judge.appointmentdate}</td>
+                  <td>{judge.specialization}</td>
+                  <td>
+                    {judge.assigned_cases?.length > 0 ? (
+                      <ul className="list-unstyled mb-0">
+                        {judge.assigned_cases.map((caseName, idx) => (
+                          <li key={idx}>{caseName}</li>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card.Body>
-              </Card>
+                      </ul>
+                    ) : (
+                      <span className="text-muted">No cases assigned</span>
+                    )}
+                  </td>
+                  <td>
+                    <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditJudge(judge)}>
+                      Edit
+                    </Button>
+                    <Button variant="outline-danger" size="sm" onClick={() => handleDeleteJudge(judge)}>
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    </Card.Body>
+  </Card>
+)}
+
+{selectedPage === 'remands' && (
+  <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
+    <Card.Body>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}>
+            <i className="bi bi-gavel me-2"></i>Remand Management
+          </h2>
+          <div className="text-muted mb-2">Manage remands for cases in your court.</div>
+        </div>
+        <Button variant="primary" className="d-flex align-items-center gap-2" onClick={() => {
+          setEditingRemand(null);
+          setRemandForm({
+            caseName: '',
+            lawyerName: '',
+            clientName: '',
+            remandType: '',
+            remandDate: '',
+            remandReason: '',
+            status: '',
+            duration: ''
+          });
+          setShowRemandModal(true);
+        }}>
+          <Plus size={20} /> Add Remand
+        </Button>
+      </div>
+      <InputGroup className="mb-3" style={{ maxWidth: 400 }}>
+        <InputGroup.Text><i className="bi bi-search"></i></InputGroup.Text>
+        <Form.Control placeholder="Search remands..." />
+      </InputGroup>
+      <div className="table-responsive">
+        <table className="table align-middle mb-0">
+          <thead style={{ background: '#f4f6fa' }}>
+            <tr style={{ color: '#22304a', fontWeight: 600 }}>
+              <th>Case Title</th>
+              <th>Remand Type</th>
+              <th>Remand Date</th>
+              <th>Reason</th>
+              <th>Status</th>
+              <th>Duration (days)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {remands.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center text-muted">No remands found</td>
+              </tr>
+            ) : (
+              remands.map((r, idx) => (
+                <tr key={idx}>
+                  <td>{r.title}</td>
+                  <td>{r.remandtype}</td>
+                  <td>{r.remanddate}</td>
+                  <td>{r.remandreason}</td>
+                  <td>{r.status}</td>
+                  <td>{r.duration}</td>
+                </tr>
+              ))
             )}
+          </tbody>
+        </table>
+      </div>
+    </Card.Body>
+  </Card>
+)}
+
+
+          
             {selectedPage === 'caseHistory' && (
               <>
                 <Card className="shadow-sm border-0" style={{ borderRadius: 16 }}>
@@ -2127,6 +2553,24 @@ useEffect(() => {
         </Form>
       </Modal>
 
+      <Modal show={confirm.show && confirm.type === 'deleteRoom'} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
+  <Modal.Header closeButton>
+    <Modal.Title>Confirm Deletion</Modal.Title>
+  </Modal.Header>
+  <Modal.Body>
+    Are you sure you want to delete this courtroom?
+  </Modal.Body>
+  <Modal.Footer>
+    <Button variant="secondary" onClick={() => setConfirm({ show: false, type: '', payload: null })}>
+      Cancel
+    </Button>
+    <Button variant="danger" onClick={handleConfirmDeleteRoom}>
+      Delete
+    </Button>
+  </Modal.Footer>
+</Modal>
+
+
       {/* Add/Edit Room Modal (full form) */}
       <Modal show={showRoomModal} onHide={() => { setShowRoomModal(false); setEditingRoom(null); }} centered>
         <Modal.Header closeButton>
@@ -2208,36 +2652,38 @@ useEffect(() => {
           </Modal.Footer>
         </Form>
       </Modal>
+<Modal show={confirm.show} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
+  <Modal.Header closeButton>
+    <Modal.Title>Confirm Delete</Modal.Title>
+  </Modal.Header>
+  <Modal.Body>
+  {confirm.type === 'deleteRoom' && (
+    <span>Are you sure you want to delete courtroom <b>#{confirm.payload?.number}</b>?</span>
+  )}
+  {confirm.type === 'deleteCourt' && (
+    <span>Are you sure you want to delete the court <b>{confirm.payload?.name}</b>?</span>
+  )}
+  {confirm.type === 'deletePayment' && (
+    <span>Are you sure you want to delete the payment record for <b>{confirm.payload?.caseName}</b>?</span>
+  )}
+</Modal.Body>
 
-      {/* Confirmation Dialog */}
-      <Modal show={confirm.show} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Action</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {confirm.type === 'deleteCourt' && (
-            <span>Are you sure you want to delete the court <b>{confirm.payload?.name}</b>?</span>
-          )}
-          {confirm.type === 'deleteRoom' && (
-            <span>Are you sure you want to delete the room <b>{confirm.payload?.name}</b>?</span>
-          )}
-          {confirm.type === 'deletePayment' && (
-            <span>Are you sure you want to delete the payment record for <b>{confirm.payload?.caseName}</b>?</span>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setConfirm({ show: false, type: '', payload: null })}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={() => {
-            if (confirm.type === 'deleteCourt') confirmDeleteCourt();
-            if (confirm.type === 'deleteRoom') confirmDeleteRoom();
-            if (confirm.type === 'deletePayment') confirmDeletePayment();
-          }}>
-            Delete
-          </Button>
-        </Modal.Footer>
-      </Modal>
+  <Modal.Footer>
+    <Button variant="secondary" onClick={() => setConfirm({ show: false, type: '', payload: null })}>
+      Cancel
+    </Button>
+    <Button
+      variant="danger"
+      onClick={() => {
+        if (confirm.type === 'deleteCourt') handleConfirmDeleteCourt();
+        if (confirm.type === 'deleteRoom') handleConfirmDeleteRoom();
+        if (confirm.type === 'deletePayment') handleConfirmDeletePayment();
+      }}
+    >
+      Delete
+    </Button>
+  </Modal.Footer>
+</Modal>
 
       {/* Room View Modal */}
       <Modal show={showRoomViewModal} onHide={() => setShowRoomViewModal(false)} centered>
