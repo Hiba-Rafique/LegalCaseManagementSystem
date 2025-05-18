@@ -36,17 +36,34 @@ const mockRooms = [
 const RegistrarDashboard = () => {
   // Courts state
   const [courts, setCourts] = useState([]);
-const [selectedCourt, setSelectedCourt] = useState(null);
-const [loadingCourts, setLoadingCourts] = useState(true);
-const [courtError, setCourtError] = useState('');
+  const [selectedCourt, setSelectedCourt] = useState(null);
+  const [loadingCourts, setLoadingCourts] = useState(true);
+  const [courtError, setCourtError] = useState('');
   const [showCourtModal, setShowCourtModal] = useState(false);
   const [courtForm, setCourtForm] = useState({ name: '', location: '', type: '' });
   const [editingCourt, setEditingCourt] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchCourt, setSearchCourt] = useState('');
   
-const [judges, setJudges] = useState([]);
-const [activityLogs, setActivityLogs] = useState([]);
+  const [judges, setJudges] = useState([]);
+  const [activityLogs, setActivityLogs] = useState([]);
+
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyingCase, setVerifyingCase] = useState(null);
+  const [verifyForm, setVerifyForm] = useState({
+    casename: '',
+    type: '',
+    filingdate: '',
+    clientname: '',
+    lawyername: '',
+    judgename: '',
+    prosecutorname: ''
+  });
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
+  const [verifySuccess, setVerifySuccess] = useState('');
+  const [judgeOptions, setJudgeOptions] = useState([]);
+  const [prosecutorOptions, setProsecutorOptions] = useState([]);
 
 useEffect(() => {
   const fetchActivityLogs = async () => {
@@ -72,8 +89,8 @@ useEffect(() => {
 
   // Court management state
   const [courtRooms, setCourtRooms] = useState([]);
-const [loadingRooms, setLoadingRooms] = useState(true);
-const [roomError, setRoomError] = useState('');
+  const [loadingRooms, setLoadingRooms] = useState(true);
+  const [roomError, setRoomError] = useState('');
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [roomForm, setRoomForm] = useState({ number: '', name: '', capacity: '', type: '', status: '' });
   const [editingRoom, setEditingRoom] = useState(null);
@@ -734,17 +751,21 @@ const handleConfirmDeleteRoom = async () => {
   if (!room) return;
 
   try {
+    // Optimistically remove from UI first (optional, for snappy UX)
+    setCourtRooms(prev => prev.filter(r => r.id !== room.id));
+
     const response = await fetch(`/api/courtrooms/${room.id}`, {
       method: 'DELETE',
       credentials: 'include',
     });
 
     if (!response.ok) {
+      // If backend fails, restore the room in UI
+      setCourtRooms(prev => [...prev, room]);
       const error = await response.json();
       throw new Error(error.message || 'Failed to delete room');
     }
 
-    setCourtRooms(courtRooms.filter(r => r.id !== room.id));
     showToast('Room deleted!');
   } catch (err) {
     console.error('Delete room error:', err);
@@ -963,6 +984,67 @@ const handleRoomAdd = () => {
   loadProsecutors();
 }, []);
 
+useEffect(() => {
+  if (showVerifyModal) {
+    fetch('/api/judges', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => setJudgeOptions(data.judges || []))
+      .catch(() => setJudgeOptions([]));
+    fetch('/api/prosecutors', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => setProsecutorOptions(data.prosecutors || []))
+      .catch(() => setProsecutorOptions([]));
+  }
+}, [showVerifyModal]);
+
+const handleVerifyCase = (caseObj) => {
+  setVerifyingCase(caseObj);
+  setVerifyForm({
+    casename: caseObj.title || '',
+    type: caseObj.casetype || '',
+    filingdate: caseObj.filingdate || '',
+    clientname: caseObj.clientName || '',
+    lawyername: caseObj.lawyername || '',
+    judgename: caseObj.judgeName || '',
+    prosecutorname: caseObj.prosecutor || ''
+  });
+  setVerifyError('');
+  setVerifySuccess('');
+  setShowVerifyModal(true);
+};
+
+const handleVerifyFormChange = (e) => {
+  setVerifyForm({ ...verifyForm, [e.target.name]: e.target.value });
+};
+
+const handleVerifySubmit = async (e) => {
+  e.preventDefault();
+  setVerifyLoading(true);
+  setVerifyError('');
+  setVerifySuccess('');
+  try {
+    const res = await fetch('/api/verifycases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(verifyForm)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setVerifyError(data.error || data.message || 'Verification failed');
+    } else {
+      setVerifySuccess('Case verified and relationships created.');
+      setShowVerifyModal(false);
+      showToast('Case verified!', 'success');
+      // Optionally refresh cases here
+    }
+  } catch (err) {
+    setVerifyError('Verification failed');
+  } finally {
+    setVerifyLoading(false);
+  }
+};
+
 
   // Profile handlers
   const handleProfileSave = () => {
@@ -973,10 +1055,8 @@ const handleRoomAdd = () => {
 
   // Logout handler
   const handleLogout = () => {
-    setCourts([]);
-    setSelectedCourt(null);
-    setActiveTab('dashboard');
-    window.location.href = '/login';
+    localStorage.clear();
+    navigate('/login');
   };
 
   // Helper to get CourtRegistrar info from localStorage (from signup)
@@ -1280,17 +1360,18 @@ const handleProsecutorSubmit = async (e) => {
 
     if (editingJudge) {
       // Editing: send PUT to update profile
-      response = await fetch('/api/judge', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          specialization: judgeForm.specialization,
-          appointmentdate: judgeForm.appointmentDate,
-          expyears: judgeForm.experience,
-          position: judgeForm.position,
-        }),
-      });
+    response = await fetch('/api/judge', {
+    method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    body: JSON.stringify({
+      name: judgeForm.name, // <-- ADD THIS LINE
+      specialization: judgeForm.specialization,
+      appointmentdate: judgeForm.appointmentDate,
+      expyears: judgeForm.experience,
+      position: judgeForm.position,
+  }),
+});
     } else {
       // Adding new judge: send POST
       response = await fetch('/api/judges', {
@@ -1357,15 +1438,19 @@ const handleProsecutorSubmit = async (e) => {
 };
 
 const handleEditJudge = (judge) => {
+  // Defensive: handle both backend and frontend judge object shapes
   setEditingJudge(judge);
+
   setJudgeForm({
-    name: judge.name,
-    position: judge.position,
-    experience: judge.experience,
-    appointmentDate: judge.appointmentDate,
-    specialization: judge.specialization,
-    assignedCases: judge.assignedCases || []
+    name: judge.name || `${judge.firstname || ''} ${judge.lastname || ''}`.trim(),
+    position: judge.position || '',
+    experience: judge.expyears || judge.experience || '',
+    appointmentDate: judge.appointmentdate || judge.appointmentDate || '',
+    specialization: judge.specialization || '',
+    assignedCases: judge.assigned_cases || judge.assignedCases || [],
+    id: judge.judgeid || judge.id || undefined
   });
+
   setShowJudgeModal(true);
 };
 
@@ -1845,23 +1930,30 @@ useEffect(() => {
                     </td>
                     <td>
                       <div className="d-flex gap-2">
+                        <Button
+                          variant="outline-success"
+                          size="sm"
+                          onClick={() => handleVerifyCase(case_)}
+                        >
+                        Verify
+                        </Button>
                         <Button 
                           variant="outline-primary" 
                           size="sm"
                           onClick={() => {
-                            setEditingCase(case_);
-                            setCaseForm(case_);
-                            setShowCaseModal(true);
+                          setEditingCase(case_);
+                          setCaseForm(case_);
+                          setShowCaseModal(true);
                           }}
                         >
-                          Edit
+                        Edit
                         </Button>
                         <Button 
                           variant="outline-danger" 
                           size="sm"
                           onClick={() => handleDeleteCase(case_.caseid)}
                         >
-                          Delete
+                        Delete
                         </Button>
                       </div>
                     </td>
@@ -3547,6 +3639,103 @@ useEffect(() => {
           </Modal.Footer>
         </Form>
       </Modal>
+      {/* Verify Case Modal */}
+      <Modal show={showVerifyModal} onHide={() => setShowVerifyModal(false)} centered>
+  <Modal.Header closeButton>
+    <Modal.Title>Verify Case</Modal.Title>
+  </Modal.Header>
+  <Form onSubmit={handleVerifySubmit}>
+    <Modal.Body>
+      {verifyError && <div className="alert alert-danger">{verifyError}</div>}
+      {verifySuccess && <div className="alert alert-success">{verifySuccess}</div>}
+      <Form.Group className="mb-3">
+        <Form.Label>Case Name</Form.Label>
+        <Form.Control
+          type="text"
+          name="casename"
+          value={verifyForm.casename}
+          readOnly
+          disabled
+        />
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Type</Form.Label>
+        <Form.Control
+          type="text"
+          name="type"
+          value={verifyForm.type}
+          readOnly
+          disabled
+        />
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Filing Date</Form.Label>
+        <Form.Control
+          type="date"
+          name="filingdate"
+          value={verifyForm.filingdate}
+          readOnly
+          disabled
+        />
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Client Name</Form.Label>
+        <Form.Control
+          type="text"
+          name="clientname"
+          value={verifyForm.clientname}
+          onChange={handleVerifyFormChange}
+          required
+        />
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Lawyer Name</Form.Label>
+        <Form.Control
+          type="text"
+          name="lawyername"
+          value={verifyForm.lawyername}
+          onChange={handleVerifyFormChange}
+          required
+        />
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Judge</Form.Label>
+        <Form.Select
+          name="judgename"
+          value={verifyForm.judgename}
+          onChange={handleVerifyFormChange}
+          required
+        >
+          <option value="">Select judge</option>
+          {judgeOptions.map(j => (
+            <option key={j.judgeid} value={j.name}>{j.name}</option>
+          ))}
+        </Form.Select>
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Prosecutor</Form.Label>
+        <Form.Select
+          name="prosecutorname"
+          value={verifyForm.prosecutorname}
+          onChange={handleVerifyFormChange}
+        >
+          <option value="">Select prosecutor (optional)</option>
+          {prosecutorOptions.map(p => (
+            <option key={p.id} value={p.name}>{p.name}</option>
+          ))}
+        </Form.Select>
+      </Form.Group>
+    </Modal.Body>
+    <Modal.Footer>
+      <Button variant="secondary" onClick={() => setShowVerifyModal(false)}>
+        Cancel
+      </Button>
+      <Button variant="primary" type="submit" disabled={verifyLoading}>
+        {verifyLoading ? 'Verifying...' : 'Verify'}
+      </Button>
+    </Modal.Footer>
+  </Form>
+</Modal>
     </div>
   );
 };

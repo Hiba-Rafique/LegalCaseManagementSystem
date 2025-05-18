@@ -326,8 +326,8 @@ const handleCaseSubmit = async (e) => {
 
 
   const handleLogout = () => {
-    localStorage.removeItem('userToken');
-    window.location.href = '/login';
+    localStorage.clear();
+    navigate('/login');
   };
 
   const renderContent = () => {

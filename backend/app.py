@@ -4,7 +4,7 @@ import logging
 import os
 import traceback
 import psycopg2
-from psycopg.rows import dict_row
+# fom psycopg.rows import dict_row
 from flask import Flask, g, request, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_cors import CORS
@@ -14,7 +14,6 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import aliased
-from psycopg.rows import dict_row
 from config import Config
 from models import *
 app = Flask(__name__, static_folder="../frontend/dist", static_url_path="/")
@@ -2933,7 +2932,6 @@ def get_evidence_for_case(case_id):
 def get_evidence_for_logged_in_lawyer():
     db = SessionLocal()
     try:
-       
         user = db.query(Users).filter_by(userid=current_user.userid).first()
 
         if not user or user.role != 'Lawyer':
@@ -3128,26 +3126,23 @@ def add_witness(case_id):
 def get_witnesses_for_case(case_id):
     db = SessionLocal()
     try:
-        witnesses = (
-            db.query(Witnesscase)
-            .filter_by(caseid=case_id)
-            .join(Witnesses, Witnesscase.witnessid == Witnesses.witnessid)
-            .all()
-        )
-        result = [
-            {
-                'witness_id': w.witnessid,
-                'firstname': w.firstname,
-                'lastname': w.lastname,
-                'cnic': w.cnic,
-                'phone': w.phone,
-                'email': w.email,
-                'address': w.address,
-                'statement': w.statement,
-                'statementdate': w.statementdate.isoformat()
-            }
-            for w in witnesses
-        ]
+        witness_links = db.query(Witnesscase).filter_by(caseid=case_id).all()
+        result = []
+        for link in witness_links:
+            witness = db.query(Witnesses).filter_by(witnessid=link.witnessid).first()
+            if witness:
+                result.append({
+                    'witness_id': witness.witnessid,
+                    'firstname': witness.firstname,
+                    'lastname': witness.lastname,
+                    'cnic': witness.cnic,
+                    'phone': witness.phone,
+                    'email': witness.email,
+                    'address': witness.address,
+                    'pasthistory': witness.pasthistory,
+                    'statement': link.statement,
+                    'statementdate': link.statementdate.isoformat() if link.statementdate else None
+                })
         return jsonify({'witnesses': result}), 200
     except Exception as e:
         return jsonify({'message': str(e)}), 500
@@ -3332,7 +3327,31 @@ def upload_case_document(case_id):
         return jsonify({'message': str(e)}), 500
     finally:
         db.close()
-
+        
+@app.route('/api/cases/<int:case_id>/documents', methods=['GET'])
+@login_required
+def get_case_documents(case_id):
+    db = SessionLocal()
+    try:
+        document_links = db.query(Documentcase).filter_by(caseid=case_id).all()
+        result = []
+        for link in document_links:
+            doc = db.query(Documents).filter_by(documentid=link.documentid).first()
+            if doc:
+                result.append({
+                    'id': doc.documentid,
+                    'title': doc.documenttitle,
+                    'path': doc.filepath,
+                    'uploadDate': doc.uploaddate.isoformat() if doc.uploaddate else '',
+                    'type': doc.documenttype or (doc.documenttitle.split('.')[-1] if doc.documenttitle and '.' in doc.documenttitle else 'Document'),
+                    'submissiondate': link.submissiondate.isoformat() if link.submissiondate else ''
+                })
+        return jsonify({'documents': result}), 200
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+    finally:
+        db.close()
+        
 @app.route('/api/documents', methods=['POST'])
 def upload_document():
     data = request.get_json()
@@ -3505,6 +3524,12 @@ def add_final_decision(case_id):
     UPDATE cases SET status = 'Closed' WHERE caseid = %s
 """
         cur.execute(update_query, (case_id,))
+        
+        # After inserting finaldecision and updating case status
+        cur.execute("""
+        INSERT INTO casehistory (caseid, actiondate, actiontaken, remarks)
+        VALUES (%s, %s, %s, %s)
+        """, (case_id, decision_date, f"Case closed with verdict: {verdict}", decision_summary))
 
         conn.commit()
 
@@ -3523,7 +3548,7 @@ def add_final_decision(case_id):
             cur.close()
         if conn:
             conn.close()
-            
+
 @app.route('/api/cases/<int:case_id>/final-decision', methods=['GET'])
 @login_required
 def get_final_decision(case_id):
@@ -3941,6 +3966,7 @@ def check_case_access(case_id):
         return query.first() is not None
     finally:
         db.close()
+
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
     try:
@@ -4037,6 +4063,100 @@ def get_admin_profile():
         'dob': current_user.dob.isoformat() if current_user.dob else '',
         
     })
+    
+
+@app.route('/api/verifycases', methods=['POST'])
+def verify_cases():
+    data = request.get_json()
+
+    required_fields = ['casename', 'type', 'filingdate', 'clientname', 'lawyername', 'judgename']
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    casename = data['casename']
+    clientname = data['clientname']
+    lawyername = data['lawyername']
+    judgename = data['judgename']
+    prosecutorname = data.get('prosecutorname')
+
+    try:
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # Get caseid
+        cur.execute("SELECT caseid FROM cases WHERE title = %s", (casename,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Case not found"}), 404
+        caseid = row[0]
+
+        # Get userids
+        def get_userid_by_name(fullname):
+            first, last = fullname.split(maxsplit=1)
+            cur.execute("SELECT userid FROM users WHERE firstname = %s AND lastname = %s", (first, last))
+            result = cur.fetchone()
+            return result[0] if result else None
+
+        client_userid = get_userid_by_name(clientname)
+        lawyer_userid = get_userid_by_name(lawyername)
+        judge_userid = get_userid_by_name(judgename)
+        prosecutor_userid = get_userid_by_name(prosecutorname) if prosecutorname else None
+
+        if not all([client_userid, lawyer_userid, judge_userid]):
+            return jsonify({"error": "Client, Lawyer, or Judge not found"}), 404
+
+        # Get participantid for client
+        cur.execute("SELECT participantid FROM caseparticipant WHERE userid = %s", (client_userid,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Client caseparticipant not found"}), 404
+        participantid = row[0]
+
+        # Get lawyerid
+        cur.execute("SELECT lawyerid FROM lawyer WHERE userid = %s", (lawyer_userid,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Lawyer not found"}), 404
+        lawyerid = row[0]
+
+        # Get judgeid
+        cur.execute("SELECT judgeid FROM judge WHERE userid = %s", (judge_userid,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Judge not found"}), 404
+        judgeid = row[0]
+
+        # Get prosecutorid (optional)
+        prosecutorid = None
+        if prosecutor_userid:
+            cur.execute("SELECT prosecutorid FROM prosecutor WHERE name = %s", (prosecutorname,))
+            row = cur.fetchone()
+            if row:
+                prosecutorid = row[0]
+
+        # Insert caseparticipantaccess
+        cur.execute("INSERT INTO caseparticipantaccess (caseid, participantid) VALUES (%s, %s) ON CONFLICT DO NOTHING", (caseid, participantid))
+
+        # Insert caselawyeraccess
+        cur.execute("INSERT INTO caselawyeraccess (caseid, lawyerid) VALUES (%s, %s) ON CONFLICT DO NOTHING", (caseid, lawyerid))
+
+        # Insert judgeaccess
+        cur.execute("INSERT INTO judgeaccess (caseid, judgeid) VALUES (%s, %s) ON CONFLICT DO NOTHING", (caseid, judgeid))
+
+        # Insert prosecutorassign (optional)
+        if prosecutorid:
+            cur.execute("INSERT INTO prosecutorassign (caseid, prosecutorid) VALUES (%s, %s) ON CONFLICT DO NOTHING", (caseid, prosecutorid))
+
+        conn.commit()
+        return jsonify({"message": "Case verified and relationships created."}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cur.close()
+        conn.close()
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -7,15 +7,18 @@ const categories = ['Legal Documents', 'Evidence', 'Statements'];
 function ClientDocuments() {
   const [documents, setDocuments] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Legal Documents');
+  { /*
+Removed the add document functionality for client, uncomment if needed
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTitle, setAddTitle] = useState('');
   const [addFile, setAddFile] = useState(null);
   const [addLoading, setAddLoading] = useState(false);
+  const fileInputRef = useRef();
+  */ }
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewDoc, setViewDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const fileInputRef = useRef();
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -75,6 +78,7 @@ function ClientDocuments() {
   // Filter using documenttype field
   const filteredDocuments = documents.filter(doc => doc.documenttype === selectedCategory);
 
+  {/* uncomment if wanted to add the document upload functionality
   const handleAddDocument = async (e) => {
     e.preventDefault();
     if (!addTitle || !addFile) return;
@@ -106,6 +110,7 @@ function ClientDocuments() {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }, 1000);
   };
+*/ }
 
   const handleView = (doc) => {
     setViewDoc(doc);
@@ -130,8 +135,10 @@ function ClientDocuments() {
                   {category}
                 </ListGroup.Item>
               ))}
-            </ListGroup>
-            {selectedCategory === 'Legal Documents' && (
+            </ListGroup> 
+            { /* Remove add Legal document button */ }
+{ /* Uncomment if you want to add the button back */ }
+            { /* { selectedCategory === 'Legal Documents' && (
               <Button
                 variant="primary"
                 className="mt-4 w-100 d-flex align-items-center gap-2"
@@ -139,7 +146,7 @@ function ClientDocuments() {
               >
                 <UploadCloud size={18} /> Add Legal Document
               </Button>
-            )}
+            )} */ }
           </Card.Body>
         </Card>
       </Col>
@@ -208,8 +215,8 @@ function ClientDocuments() {
           </Card.Body>
         </Card>
       </Col>
-
-      {/* Add Legal Document Modal */}
+      {/* Legal Document Modal Removed for client, uncomment if needed */}
+      {/*
       <Modal show={showAddModal} onHide={() => setShowAddModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Add Legal Document</Modal.Title>
@@ -244,6 +251,7 @@ function ClientDocuments() {
           </Modal.Footer>
         </Form>
       </Modal>
+      */}
 
       {/* View Document Modal */}
       <Modal show={showViewModal} onHide={() => setShowViewModal(false)} centered size="lg">
