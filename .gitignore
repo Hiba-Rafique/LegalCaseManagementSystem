@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Flask session data
+backend/flask_session/
+
+# Node / React
+node_modules/
+build/
+dist/
+
+# VSCode and other IDEs
+.vscode/
+.env
+.DS_Store
