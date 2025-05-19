@@ -843,37 +843,42 @@ const updateHearingRemarks = async (hearingId, remarks) => {
         </div>
       </div>
 
-      {/* History Modal */}
-      <Modal 
-        show={showHistoryModal} 
-        onHide={() => setShowHistoryModal(false)}
-        centered
-        className="event-modal"
-      >
-        <Modal.Header closeButton className="border-0">
-          <Modal.Title>Case History</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <ListGroup variant="flush">
-            {selectedCase?.history.map((event, index) => (
-              <ListGroup.Item key={index} className="border-0 mb-3 p-3 rounded-3 shadow-sm">
-                <div className="d-flex align-items-center gap-2 mb-2">
-                  <Badge bg={event.type === 'Hearing' ? 'primary' : 'info'}>
-                    {event.type}
-                  </Badge>
-                  <span className="fw-bold">{event.date}</span>
-                </div>
-                <p className="mb-0">{event.event}</p>
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
-        </Modal.Body>
-        <Modal.Footer className="border-0">
-          <Button variant="light" onClick={() => setShowHistoryModal(false)}>
-            Close
-          </Button>
-        </Modal.Footer>
-      </Modal>
+     {/* History Modal */}
+<Modal 
+  show={showHistoryModal} 
+  onHide={() => setShowHistoryModal(false)}
+  centered
+  className="event-modal"
+>
+  <Modal.Header closeButton className="border-0">
+    <Modal.Title>Case History: {historyCase?.title || 'Untitled Case'}</Modal.Title>
+  </Modal.Header>
+  <Modal.Body>
+    <ListGroup variant="flush">
+      {historyCase?.history && historyCase.history.length > 0 ? (
+        historyCase.history.map((event, index) => (
+          <ListGroup.Item key={index} className="border-0 mb-3 p-3 rounded-3 shadow-sm">
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <Badge bg={event.type === 'Hearing' ? 'primary' : 'info'}>
+                {event.type || 'Event'}
+              </Badge>
+              <span className="fw-bold">{event.date}</span>
+            </div>
+            <p className="mb-0">{event.event}</p>
+          </ListGroup.Item>
+        ))
+      ) : (
+        <div className="text-muted text-center">No history available for this case.</div>
+      )}
+    </ListGroup>
+  </Modal.Body>
+  <Modal.Footer className="border-0">
+    <Button variant="light" onClick={() => setShowHistoryModal(false)}>
+      Close
+    </Button>
+  </Modal.Footer>
+</Modal>
+
 
       {/* Witnesses Modal */}
       <Modal 

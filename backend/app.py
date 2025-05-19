@@ -1218,39 +1218,96 @@ def get_courtrooms():
             conn.close()
         return jsonify({'message': str(e)}), 500
 
-# cases api
 @app.route('/api/cases', methods=['POST'])
 @login_required
 def create_case():
-    db = SessionLocal()
+    conn = None
     try:
         data = request.get_json()
         title = data.get('title')
         description = data.get('description')
-        casetype = data.get('casetype')
+        casetype = data.get('casetype')  # frontend sends camelCase
         filingdate = data.get('filingdate') or datetime.date.today()
         status = data.get('status', 'Open')
+        courtname = data.get('courtname')  # <-- fix this
+        fullname = data.get('clientName', '').strip()  # <-- fine if coming from frontend
 
-        if not title or not casetype:
-            return jsonify({'message': 'Title and case type are required'}), 400
+        print("DEBUG RAW DATA:", data)
+        print("DEBUG PARSED VALUES:", {
+    'title': title,
+    'casetype': casetype,
+    'courtname': courtname,
+    'fullname': fullname
+})
+        if not title or not casetype or not courtname or not fullname:
+            return jsonify({'message': 'Missing required fields'}), 400
 
-        new_case = Cases(
-            title=title,
-            description=description,
-            casetype=casetype,
-            filingdate=filingdate,
-            status=status
-        )
-        db.add(new_case)
-        db.commit()
+        # Split full name into first and last name
+        name_parts = fullname.split()
+        if len(name_parts) < 2:
+            return jsonify({'message': 'Please provide full name as "First Last"'}), 400
+        firstname, lastname = name_parts[0], ' '.join(name_parts[1:])
 
-        return jsonify({'message': 'Case created successfully', 'case_id': new_case.caseid}), 201
+        conn = get_pg_connection()
+        cur = conn.cursor()
+
+        # 1. Get courtid
+        cur.execute("SELECT courtid FROM court WHERE courtname = %s", (courtname,))
+        court_result = cur.fetchone()
+        if not court_result:
+            return jsonify({'message': 'Court not found'}), 404
+        courtid = court_result[0]
+
+        # 2. Insert into cases
+        cur.execute("""
+            INSERT INTO cases (title, description, casetype, filingdate, status)
+            VALUES (%s, %s, %s, %s, 'Pending')
+            RETURNING caseid
+        """, (title, description, casetype, filingdate))
+        caseid = cur.fetchone()[0]
+
+        # 3. Insert into courtaccess
+        cur.execute("""
+            INSERT INTO courtaccess (courtid, caseid)
+            VALUES (%s, %s)
+        """, (courtid, caseid))
+
+        # 4. Fetch userid from users
+        cur.execute("""
+            SELECT userid FROM users WHERE firstname = %s AND lastname = %s
+        """, (firstname, lastname))
+        user_result = cur.fetchone()
+        if not user_result:
+            return jsonify({'message': 'User not found for provided full name'}), 404
+        userid = user_result[0]
+
+        # 5. Fetch participantid from caseparticipant using userid
+        cur.execute("""
+            SELECT participantid FROM caseparticipant WHERE userid = %s
+        """, (userid,))
+        participant_result = cur.fetchone()
+        if not participant_result:
+            return jsonify({'message': 'Participant not found for user'}), 404
+        participantid = participant_result[0]
+
+        # 6. Insert into caseparticipantaccess
+        cur.execute("""
+            INSERT INTO caseparticipantaccess (participantid, caseid)
+            VALUES (%s, %s)
+        """, (participantid, caseid))
+
+        conn.commit()
+        return jsonify({'message': 'Case created successfully', 'case_id': caseid}), 201
+
     except Exception as e:
-        db.rollback()
+        if conn:
+            conn.rollback()
         return jsonify({'message': str(e)}), 500
+
     finally:
-        db.close()
-        
+        if conn:
+            conn.close()
+
         
 @app.route('/api/courtrooms/<int:courtid>', methods=['GET'])
 @login_required
@@ -1274,7 +1331,7 @@ def get_courtrooms_by_court(courtid):
                 'name': "CourtRoom " + str(row[0]),
                 'number': row[1],
                 'capacity': row[2],
-                'status': 'Available' if row[3] else 'Occupied'
+                'status': row[3]
             }
             for row in rows
         ]

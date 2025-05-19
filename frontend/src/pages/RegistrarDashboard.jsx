@@ -748,32 +748,33 @@ useEffect(() => {
 
 const handleConfirmDeleteRoom = async () => {
   const room = confirm.payload;
-  if (!room) return;
+  if (!room || !room.id) {
+    console.warn('No room or room.id to delete');
+    return;
+  }
 
   try {
-    // Optimistically remove from UI first (optional, for snappy UX)
-    setCourtRooms(prev => prev.filter(r => r.id !== room.id));
-
     const response = await fetch(`/api/courtrooms/${room.id}`, {
       method: 'DELETE',
       credentials: 'include',
     });
 
     if (!response.ok) {
-      // If backend fails, restore the room in UI
-      setCourtRooms(prev => [...prev, room]);
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete room');
+      const err = await response.json();
+      throw new Error(err.message || 'Failed to delete room');
     }
 
-    showToast('Room deleted!');
+    // Update UI
+    setCourtRooms(prev => prev.filter(r => r.id !== room.id));
+    showToast('Room deleted successfully');
   } catch (err) {
-    console.error('Delete room error:', err);
-    showToast(err.message || 'Error deleting room', 'danger');
+    console.error('Error deleting room:', err);
+    showToast(err.message, 'danger');
   } finally {
     setConfirm({ show: false, type: '', payload: null });
   }
 };
+
 
 const handleRoomEdit = (room) => {
   setEditingRoom(room);
@@ -1365,12 +1366,13 @@ const handleProsecutorSubmit = async (e) => {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
     body: JSON.stringify({
-      name: judgeForm.name, // <-- ADD THIS LINE
-      specialization: judgeForm.specialization,
-      appointmentdate: judgeForm.appointmentDate,
-      expyears: judgeForm.experience,
-      position: judgeForm.position,
-  }),
+  name: judgeForm.name,
+  specialization: judgeForm.specialization,
+  appointmentDate: judgeForm.appointmentDate, // FIXED
+  experience: judgeForm.experience,           // FIXED
+  position: judgeForm.position,
+})
+,
 });
     } else {
       // Adding new judge: send POST
@@ -1573,13 +1575,51 @@ const handleViewCase = async (caseId) => {
 
   // Case History handlers
   const handleCaseHistoryFormChange = (e) => setCaseHistoryForm({ ...caseHistoryForm, [e.target.name]: e.target.value });
-  const handleCaseHistorySubmit = (e) => {
-    e.preventDefault();
-    if (editingCaseHistory) {
-      setCaseHistory(caseHistory.map(h => h.id === editingCaseHistory.id ? { ...editingCaseHistory, ...caseHistoryForm } : h));
-    } else {
-      setCaseHistory([{ ...caseHistoryForm, id: Date.now() }, ...caseHistory]);
+  const handleCaseHistorySubmit = async (e) => {
+  e.preventDefault();
+
+  // Prepare entry to save (merge editing entry + form data)
+  const entryToSave = editingCaseHistory
+    ? { ...editingCaseHistory, ...caseHistoryForm }
+    : { ...caseHistoryForm };
+
+  try {
+    // Call backend save
+    const method = entryToSave.id ? 'PUT' : 'POST';
+    const url = entryToSave.id
+      ? `/api/cases/history/${entryToSave.id}`      // Update
+      :`/api/cases/${caseId}/history`;             // Add new
+
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        actiontaken: entryToSave.actiontaken,
+        remarks: entryToSave.remarks,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.message || 'Failed to save case history');
+      return;
     }
+
+    // On success, update local state:
+    if (method === 'POST') {
+      // If server returns the new entry with ID, add it:
+      // (if not returned, you may need to fetch history again)
+      // For now, just add local with a temporary ID or refresh
+      setCaseHistory((prev) => [{ ...entryToSave, id: result.new_id || Date.now() }, ...prev]);
+    } else {
+      // For update, replace existing item with updated data
+      setCaseHistory((prev) =>
+        prev.map((h) => (h.id === entryToSave.id ? { ...h, ...entryToSave } : h))
+      );
+    }
+
+    // Clear modal and form
     setShowCaseHistoryModal(false);
     setEditingCaseHistory(null);
     setCaseHistoryForm({
@@ -1592,15 +1632,83 @@ const handleViewCase = async (caseId) => {
       actionTaken: '',
       status: '',
     });
-  };
+
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+};
+
   const handleEditCaseHistory = (entry) => {
     setEditingCaseHistory(entry);
     setCaseHistoryForm({ ...entry });
     setShowCaseHistoryModal(true);
   };
-  const handleDeleteCaseHistory = (id) => {
-    setCaseHistory(caseHistory.filter(h => h.id !== id));
-  };
+  // const handleDeleteCaseHistory = (id) => {
+  //   setCaseHistory(caseHistory.filter(h => h.id !== id));
+  // };
+
+  // Assuming `caseId` is available in your component scope
+
+const handleSaveCaseHistory = async (entry) => {
+  try {
+    const method = entry.id ? 'PUT' : 'POST';
+    const url = entry.id
+      ? `/api/cases/history/${entry.id}`              // Update existing entry
+      : `/api/cases/${caseId}/history`;                // Add new entry
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        actiontaken: entry.actiontaken,
+        remarks: entry.remarks,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      // Success - update your local state accordingly
+      if (method === 'POST') {
+        // Optionally refresh case history list or append new entry with server-assigned id
+        console.log('Added new case history:', result);
+      } else {
+        console.log('Updated case history:', result);
+      }
+      setShowCaseHistoryModal(false);
+      // Refresh the caseHistory state from API or update it locally here
+    } else {
+      alert(result.message || 'Failed to save case history');
+    }
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+};
+
+const handleDeleteCaseHistory = async (id) => {
+  if (!window.confirm('Are you sure you want to delete this history entry?')) return;
+
+  try {
+    const response = await fetch(`/api/cases/history/${id}`, {
+      method: 'DELETE',
+    });
+    const result = await response.json();
+
+    if (response.ok) {
+      setCaseHistory((prev) => prev.filter(h => h.id !== id));
+      console.log('Deleted case history:', result);
+    } else {
+      alert(result.message || 'Failed to delete history');
+    }
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+};
+
+
+
 
   useEffect(() => {
   const fetchHistoryForFirstCase = async () => {
@@ -1852,14 +1960,25 @@ useEffect(() => {
         <td>{room.number}</td>
         <td>{room.capacity}</td>
         <td>
-          <span className={`badge ${room.status ? 'bg-primary' : 'bg-danger'}`}>
-            {room.status ? 'Available' : 'Occupied'}
-          </span>
+          <span className={`badge ${room.status === 'Available' ? 'bg-primary' : 'bg-danger'}`}>
+  {room.status}
+</span>
+
         </td>
         <td>
           <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomView(room)}><Eye size={16} /></Button>
           <Button variant="outline-secondary" size="sm" className="me-2 p-1 lh-1" onClick={() => handleRoomEdit(room)}><Edit2 size={16} /></Button>
-          <Button variant="outline-danger" size="sm" className="p-1 lh-1" onClick={() => handleConfirmDeleteRoom(room)}><Trash2 size={16} /></Button>
+          {/* <Button
+  variant="outline-danger"
+  size="sm"
+  className="p-1 lh-1"
+  onClick={() =>
+    setConfirm({ show: true, type: 'deleteRoom', payload: room })
+  }
+>
+  <Trash2 size={16} />
+</Button> */}
+
         </td>
       </tr>
     ))
@@ -2215,7 +2334,7 @@ useEffect(() => {
           </Badge>
         </td>
         <td>
-          <Button
+          {/* <Button
             variant="outline-primary"
             size="sm"
             className="me-2"
@@ -2226,8 +2345,8 @@ useEffect(() => {
             }}
           >
             Edit
-          </Button>
-          <Button
+          </Button> */}
+          {/* <Button
             variant="outline-danger"
             size="sm"
             onClick={() => {
@@ -2239,7 +2358,7 @@ useEffect(() => {
             }}
           >
             Delete
-          </Button>
+          </Button> */}
         </td>
       </tr>
     ))}
@@ -2480,9 +2599,9 @@ useEffect(() => {
                         <h2 className="fw-bold mb-1" style={{ color: '#22304a' }}><i className="bi bi-clock-history me-2"></i>Manage Case History</h2>
                         <div className="text-muted mb-2">View, add, and manage all case history actions. This data will be shown in other dashboards as well.</div>
                       </div>
-                      <Button variant="primary" onClick={() => { setEditingCaseHistory(null); setCaseHistoryForm({ caseName: '', judgeName: '', clientName: '', lawyerName: '', remarks: '', actionDate: '', actionTaken: '', status: '' }); setShowCaseHistoryModal(true); }}>
+                      {/* <Button variant="primary" onClick={() => { setEditingCaseHistory(null); setCaseHistoryForm({ caseName: '', judgeName: '', clientName: '', lawyerName: '', remarks: '', actionDate: '', actionTaken: '', status: '' }); setShowCaseHistoryModal(true); }}>
                         Add Entry
-                      </Button>
+                      </Button> */}
                     </div>
                     <div className="table-responsive">
                       <table className="table align-middle mb-0">
@@ -2493,10 +2612,10 @@ useEffect(() => {
                             <th>Client Name</th>
                             <th>Lawyer Name</th>
                             <th>Remarks</th>
-                            <th>Action Date</th>
-                            <th>Action Taken</th>
+                            {/* <th>Action Date</th>
+                            <th>Action Taken</th> */}
                             <th>Status</th>
-                            <th>Actions</th>
+                            {/* <th>Actions</th> */}
                           </tr>
                         </thead>
                         <tbody>
@@ -2514,8 +2633,8 @@ useEffect(() => {
                                 <td>{entry.actionTaken}</td>
                                 <td>{entry.status}</td>
                                 <td>
-                                  <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditCaseHistory(entry)}>Edit</Button>
-                                  <Button variant="outline-danger" size="sm" onClick={() => handleDeleteCaseHistory(entry.id)}>Delete</Button>
+                                  {/* <Button variant="outline-primary" size="sm" className="me-2" onClick={() => handleEditCaseHistory(entry)}>Edit</Button>
+                                  <Button variant="outline-danger" size="sm" onClick={() => handleDeleteCaseHistory(entry.id)}>Delete</Button> */}
                                 </td>
                               </tr>
                             ))
@@ -2645,22 +2764,44 @@ useEffect(() => {
         </Form>
       </Modal>
 
-      <Modal show={confirm.show && confirm.type === 'deleteRoom'} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
+   <Modal show={confirm.show} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
   <Modal.Header closeButton>
-    <Modal.Title>Confirm Deletion</Modal.Title>
+    <Modal.Title>Confirm Delete</Modal.Title>
   </Modal.Header>
   <Modal.Body>
-    Are you sure you want to delete this courtroom?
+    {confirm.type === 'deleteRoom' && (
+      <span>Are you sure you want to delete courtroom <b>#{confirm.payload?.number}</b>?</span>
+    )}
+    {confirm.type === 'deleteCourt' && (
+      <span>Are you sure you want to delete the court <b>{confirm.payload?.name}</b>?</span>
+    )}
+    {confirm.type === 'deletePayment' && (
+      <span>Are you sure you want to delete the payment record for <b>{confirm.payload?.caseName}</b>?</span>
+    )}
+    {/* Add more types if needed */}
   </Modal.Body>
   <Modal.Footer>
     <Button variant="secondary" onClick={() => setConfirm({ show: false, type: '', payload: null })}>
       Cancel
     </Button>
-    <Button variant="danger" onClick={handleConfirmDeleteRoom}>
+    <Button
+      variant="danger"
+      onClick={() => {
+        if (confirm.type === 'deleteRoom') {
+          handleConfirmDeleteRoom();
+        } else if (confirm.type === 'deleteCourt') {
+          confirmDeleteCourt();
+        } else if (confirm.type === 'deletePayment') {
+          // Call handleConfirmDeletePayment() if you implement that
+        }
+      }}
+    >
       Delete
     </Button>
   </Modal.Footer>
 </Modal>
+
+
 
 
       {/* Add/Edit Room Modal (full form) */}
@@ -2744,7 +2885,7 @@ useEffect(() => {
           </Modal.Footer>
         </Form>
       </Modal>
-<Modal show={confirm.show} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
+{/* <Modal show={confirm.show} onHide={() => setConfirm({ show: false, type: '', payload: null })} centered>
   <Modal.Header closeButton>
     <Modal.Title>Confirm Delete</Modal.Title>
   </Modal.Header>
@@ -2775,7 +2916,7 @@ useEffect(() => {
       Delete
     </Button>
   </Modal.Footer>
-</Modal>
+</Modal> */}
 
       {/* Room View Modal */}
       <Modal show={showRoomViewModal} onHide={() => setShowRoomViewModal(false)} centered>

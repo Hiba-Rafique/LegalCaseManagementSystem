@@ -30,12 +30,13 @@ const Dashboard = () => {
   const [editingCase, setEditingCase] = useState(null);
   const [caseHistory, setCaseHistory] = useState([]);
   const [caseForm, setCaseForm] = useState({
-    title: '',
-    description: '',
-    caseType: '',
-    clientName: '',
-    judgeName: ''
-  });
+  title: '',
+  description: '',
+  caseType: '',
+  clientName: '',
+  courtName: ''
+});
+
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
@@ -59,39 +60,39 @@ const Dashboard = () => {
     return matchesSearch && matchesStatus;
   });
 
-useEffect(() => {
-  const fetchCaseHistory = async () => {
-    if (historyCase) {
-      try {
-        const res = await fetch(`/api/cases/${historyCase.id}/history`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
+// useEffect(() => {
+//   const fetchCaseHistory = async () => {
+//     if (historyCase) {
+//       try {
+//         const res = await fetch(`/api/cases/${historyCase.id}/history`, {
+//           headers: {
+//             'Authorization': `Bearer ${localStorage.getItem('userToken')}`,
+//             'Content-Type': 'application/json'
+//           },
+//           credentials: 'include'
+//         });
         
-        if (!res.ok) throw new Error('Failed to fetch case history');
+//         if (!res.ok) throw new Error('Failed to fetch case history');
 
-        const data = await res.json();
+//         const data = await res.json();
 
-        // Check if history data exists and is in the expected format
-        if (data && Array.isArray(data.history)) {
-          setCaseHistory(data.history);
-        } else {
-          setCaseHistory([]); // Set to empty array if data is invalid
-        }
-      } catch (err) {
-        console.error('Failed to fetch case history:', err);
-        setCaseHistory([]); // Set to empty array on error
-      }
-    }
-  };
+//         // Check if history data exists and is in the expected format
+//         if (data && Array.isArray(data.history)) {
+//           setCaseHistory(data.history);
+//         } else {
+//           setCaseHistory([]); // Set to empty array if data is invalid
+//         }
+//       } catch (err) {
+//         console.error('Failed to fetch case history:', err);
+//         setCaseHistory([]); // Set to empty array on error
+//       }
+//     }
+//   };
 
-  if (showHistoryModal && historyCase) {
-    fetchCaseHistory();
-  }
-}, [showHistoryModal, historyCase]);  
+//   if (showHistoryModal && historyCase) {
+//     fetchCaseHistory();
+//   }
+// }, [showHistoryModal, historyCase]);  
 
 
   useEffect(() => {
@@ -255,7 +256,7 @@ const handleCaseSubmit = async (e) => {
     description: caseForm.description,
     casetype: caseForm.caseType,
     clientName: caseForm.clientName,
-    judgeName: caseForm.judgeName,
+    courtname : caseForm.courtName
   };
 
   try {
@@ -312,12 +313,13 @@ const handleCaseSubmit = async (e) => {
     setShowCaseModal(false);
     setEditingCase(null);
     setCaseForm({
-      title: '',
-      description: '',
-      caseType: '',
-      clientName: '',
-      judgeName: '',
-    });
+  title: '',
+  description: '',
+  caseType: '',
+  clientName: '',
+  courtName: '',
+});
+
   } catch (err) {
     console.error('Error submitting case:', err);
   }
@@ -604,14 +606,15 @@ const handleCaseSubmit = async (e) => {
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Judge Name</Form.Label>
-              <Form.Control
-                type="text"
-                value={caseForm.judgeName}
-                onChange={e => setCaseForm({ ...caseForm, judgeName: e.target.value })}
-                required
-              />
-            </Form.Group>
+  <Form.Label>Court Name</Form.Label>
+  <Form.Control
+    type="text"
+    value={caseForm.courtName}
+    onChange={e => setCaseForm({ ...caseForm, courtName: e.target.value })}
+    required
+  />
+</Form.Group>
+
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowCaseModal(false)}>Cancel</Button>
@@ -637,15 +640,14 @@ const handleCaseSubmit = async (e) => {
           <Button variant="secondary" onClick={() => setShowDecisionModal(false)}>Close</Button>
         </Modal.Footer>
       </Modal>
-
-      <Modal show={showHistoryModal} onHide={() => setShowHistoryModal(false)} centered>
+<Modal show={showHistoryModal} onHide={() => setShowHistoryModal(false)} centered>
   <Modal.Header closeButton>
     <Modal.Title>Case History</Modal.Title>
   </Modal.Header>
   <Modal.Body>
-    {caseHistory.length > 0 ? (
+    {historyCase?.history?.length > 0 ? (
       <ul>
-        {caseHistory.map((h, idx) => (
+        {historyCase.history.map((h, idx) => (
           <li key={idx}><strong>{h.date}:</strong> {h.event}</li>
         ))}
       </ul>
@@ -657,6 +659,7 @@ const handleCaseSubmit = async (e) => {
     <Button variant="secondary" onClick={() => setShowHistoryModal(false)}>Close</Button>
   </Modal.Footer>
 </Modal>
+
 
       <style>{`
         .dashboard-heading, .dashboard-gradient, .modal-title, .card-title, .card-header h4, .card-header h5, h4.fw-bold, h5.fw-bold {
