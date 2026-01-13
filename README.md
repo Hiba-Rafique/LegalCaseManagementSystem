@@ -1,5 +1,63 @@
 # LegalCaseManagementSystem
 
+## Setup and Installation
+
+### Prerequisites
+- Python 3.7+
+- PostgreSQL database (Supabase recommended)
+- Node.js (for frontend)
+
+### Backend Setup
+
+1. **Navigate to the backend directory:**
+   ```bash
+   cd LegalCaseManagementSystem/backend
+   ```
+
+2. **Install required Python packages:**
+   ```bash
+   pip install flask flask-login flask-cors flask-session sqlalchemy psycopg2-binary werkzeug
+   ```
+
+3. **Set up environment variables:**
+   Create a `.env` file in the backend directory with:
+   ```
+   DATABASE_URL=your_postgresql_connection_string
+   SESSION_TYPE=filesystem
+   ```
+   Or modify the default connection in `config.py`.
+
+4. **Create database tables:**
+   ```bash
+   python create_tables.py
+   ```
+
+5. **Run the Flask backend:**
+   ```bash
+   python app.py
+   ```
+   The backend will start on `http://localhost:5000`
+
+### Frontend Setup
+
+1. **Navigate to the frontend directory:**
+   ```bash
+   cd LegalCaseManagementSystem/frontend
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
+   The frontend will start on `http://localhost:5173`
+
+## Project Overview
+
 # Home Page:
  <img width="1072" height="475" alt="image" src="https://github.com/user-attachments/assets/3e99fc48-ae0d-40df-9afa-de56c88f1554" />
 
