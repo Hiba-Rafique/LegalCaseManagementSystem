@@ -5,7 +5,7 @@
 1. **Setup backend:**
    ```bash
    cd LegalCaseManagementSystem/backend
-   pip install flask flask-login flask-cors flask-session sqlalchemy psycopg2-binary werkzeug
+   pip install flask flask-login flask-cors flask-session sqlalchemy psycopg2-binary werkzeug python-dotenv
    python create_tables.py
    ```
 
