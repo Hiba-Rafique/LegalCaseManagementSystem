@@ -1,6 +1,15 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class Config:
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres.rxkukgwjlcqnejjqbsjc:db_project_123@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     SESSION_TYPE = os.getenv('SESSION_TYPE', 'filesystem')
-
+    
+    @staticmethod
+    def validate_config():
+        """Validate that required environment variables are set"""
+        if not Config.SQLALCHEMY_DATABASE_URI:
+            raise ValueError("DATABASE_URL environment variable is required but not set")

@@ -16,6 +16,10 @@ from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import aliased
 from config import Config
 from models import *
+
+# Validate configuration
+Config.validate_config()
+
 app = Flask(__name__, static_folder="../frontend/dist", static_url_path="/")
 app.config.from_object(Config)
 

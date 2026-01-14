@@ -1,6 +1,31 @@
 # LegalCaseManagementSystem
 
-## Setup and Installation
+## Quick Start
+
+1. **Setup backend:**
+   ```bash
+   cd LegalCaseManagementSystem/backend
+   pip install flask flask-login flask-cors flask-session sqlalchemy psycopg2-binary werkzeug
+   python create_tables.py
+   ```
+
+2. **Setup and build frontend:**
+   ```bash
+   cd ../frontend
+   npm install
+   npm run build
+   ```
+
+3. **Run the application:**
+   ```bash
+   cd ../backend
+   python app.py
+   ```
+
+4. **Access the application:**
+   Open `http://localhost:5000` in your browser
+
+## Detailed Setup Instructions
 
 ### Prerequisites
 - Python 3.7+
@@ -36,7 +61,7 @@
    ```bash
    python app.py
    ```
-   The backend will start on `http://localhost:5000`
+   The backend will start on `http://localhost:5000` and serve both the API and the frontend.
 
 ### Frontend Setup
 
@@ -50,11 +75,20 @@
    npm install
    ```
 
-3. **Run the development server:**
+3. **Build the frontend:**
    ```bash
-   npm run dev
+   npm run build
    ```
-   The frontend will start on `http://localhost:5173`
+   This creates the production build in the `dist` folder.
+
+4. **Run the backend (which serves the frontend):**
+   ```bash
+   cd ../backend
+   python app.py
+   ```
+
+5. **Access the application:**
+   The full application will be accessible at `http://localhost:5000`
 
 ## Project Overview
 
